@@ -1,18 +1,21 @@
-"""Math functions, physical constants and auxiliary functions"""
+"""Math functions, physical constants and auxiliary functions."""
+
+
+# TODO: update subpackage with 2019 redefinition of SI base units and consts!
+# see https://en.wikipedia.org/wiki/2019_redefinition_of_SI_base_units
 
 import os as _os
-import mathphys.base_units as base_units
-import mathphys.units as units
-import mathphys.constants as constants
-import mathphys.functions as functions
-import mathphys.beam_optics as beam_optics
-import mathphys.beam_lifetime as beam_lifetime
-import mathphys.utils as utils
 
-__all__ = ['base_units', 'units', 'constants', 'functions', 'beam_optics',
-    'beam_lifetime', 'utils']
+from . import base_units
+from . import units
+from . import constants
+from . import functions
+from . import beam_optics
+from . import beam_lifetime
 
-from ._version import get_versions
-__version__ = get_versions()['version']
-del get_versions
+__all__ = [
+    'base_units', 'units', 'constants', 'functions', 'beam_optics',
+    'beam_lifetime']
 
+with open(_os.path.join(__path__[0], 'VERSION'), 'r') as _f:
+    __version__ = _f.read().strip()
