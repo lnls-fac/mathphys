@@ -2,8 +2,8 @@
 
 import math as _math
 import numpy as _np
-from siriuspy.mathphys import constants as _c
-from siriuspy.mathphys import units as _u
+from mathphys import constants as _c
+from mathphys import units as _u
 
 
 def calc_U0(beam_energy, I2):
