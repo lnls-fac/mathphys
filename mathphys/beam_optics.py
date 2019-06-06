@@ -107,13 +107,14 @@ def beam_rigidity(**kwargs):
         energy / electron_rest_energy_GeV
 
     if isinstance(energy, _np.ndarray):
-        if _np.any(energy < electron_rest_energy_GeV):
-            raise ValueError('Electron energy less than rest energy!')
-        beta = kwargs['beta'] if 'beta' in kwargs else \
-            _np.sqrt(((gamma-1.0)/gamma)*((gamma+1.0)/gamma))
+        if 'beta' in kwargs:
+            beta = kwargs['beta']
+        else:
+            with _np.errstate(divide='ignore', invalid='ignore'):
+                beta = _np.sqrt(((gamma-1.0)/gamma)*((gamma+1.0)/gamma))
+                beta[gamma == 0] = 0
     else:
-        if energy < electron_rest_energy_GeV:
-            # raise ValueError('Electron energy less than rest energy!')
+        if gamma == 0:
             beta = 0.0
         else:
             beta = _math.sqrt(((gamma-1.0)/gamma)*((gamma+1.0)/gamma))
