@@ -80,6 +80,7 @@ def calc_natural_bunch_length(
 # NOTE: This function is used in siriuspy!
 def beam_rigidity(**kwargs):
     """Beam rigidity."""
+    # TODO: cleanup this function (and siriuspy Normalizer)
     electron_rest_energy_eV = _c.electron_rest_energy * _u.joule_2_eV
     electron_rest_energy_GeV = electron_rest_energy_eV * _u.eV_2_GeV
 
