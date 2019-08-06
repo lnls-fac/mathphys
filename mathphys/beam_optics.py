@@ -115,7 +115,7 @@ def beam_rigidity(**kwargs):
                 beta = _np.sqrt(((gamma-1.0)/gamma)*((gamma+1.0)/gamma))
                 beta[gamma == 0] = 0
     else:
-        if gamma == 0:
+        if energy < electron_rest_energy_GeV:
             beta = 0.0
         else:
             beta = _math.sqrt(((gamma-1.0)/gamma)*((gamma+1.0)/gamma))
