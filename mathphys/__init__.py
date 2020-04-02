@@ -11,11 +11,8 @@ from . import units
 from . import constants
 from . import functions
 from . import beam_optics
-from . import beam_lifetime
 
-__all__ = [
-    'base_units', 'units', 'constants', 'functions', 'beam_optics',
-    'beam_lifetime']
+__all__ = ['base_units', 'units', 'constants', 'functions', 'beam_optics']
 
 with open(_os.path.join(__path__[0], 'VERSION'), 'r') as _f:
     __version__ = _f.read().strip()
