@@ -1,34 +1,31 @@
 """Useful functions."""
-
+from functools import partial as _partial
 import numpy as _np
 
 
-def polyfit(x, y, monomials, algorithm='lstsq'):
-    """Implement Custom polyfit."""
-    X = _np.zeros((len(x), len(monomials)))
-    N = _np.zeros((len(x), len(monomials)))
-    for i in range(X.shape[1]):
-        X[:, i] = x
-        N[:, i] = monomials[i]
-    XN = X ** N
-    y_ = _np.zeros((len(y), 1))
-    y_[:, 0] = y
-    XNt = _np.transpose(XN)
-    b = _np.dot(XNt, y_)
-    X = _np.dot(XNt, XN)
+def generate_random_numbers(n_part, dist_type='exp', cutoff=3):
+    """Generate random numbers with a cutted off dist_type distribution.
 
-    if algorithm is 'lstsq':
-        r = _np.linalg.lstsq(X, b)
-        coeffs = r[0][:, 0]
+    Inputs:
+        n_part = size of the array with random numbers
+        dist_type = assume values 'exponential', 'normal' or 'uniform'.
+        cutoff = where to cut the distribution tail.
+    """
+    dist_type = dist_type.lower()
+    if dist_type in 'exponential':
+        func = _partial(_np.random.exponential, 1)
+    elif dist_type in 'normal':
+        func = _np.random.randn
+    elif dist_type in 'uniform':
+        func = _np.random.rand
     else:
-        r = _np.linalg.solve(X, b)
-        coeffs = r[:, 0]
+        raise NotImplementedError('Distribution type not implemented yet.')
 
-    # finds maximum diff and its base value
-    y_fitted = _np.dot(XN, coeffs)
-    y_diff = abs(y_fitted - y_[:, 0])
-    max_error = max(y_diff)
-    idx = [i for i, value in enumerate(y_diff) if value == max_error]
-    base_value = y_[idx[0], 0]
-
-    return (coeffs, (max_error, base_value))
+    numbers = func(n_part)
+    above, *_ = _np.asarray(_np.abs(numbers) > cutoff).nonzero()
+    while above.size:
+        parts = func(above.size)
+        indcs = _np.abs(parts) > cutoff
+        numbers[above[~indcs]] = parts[~indcs]
+        above = above[indcs]
+    return numbers
