@@ -1,0 +1,22 @@
+language: python
+python:
+  - '3.6'
+arch: amd64
+os: linux
+dist: focal
+git:
+  submodules: false
+  depth: false
+
+script:
+  - git describe --tags | sed -e 's/^v//g' > mathphys/VERSION
+
+deploy:
+  skip_cleanup: true
+  provider: pypi
+  username: __token__
+  password:
+    secure: iQF0MEVX2kHB0r0op5u3kn/dmAtB0dlpQfIcvgKRlT2Uz2kd83vcL6ZTiuCntf8mlg+4Ta6iMWXLysJf/3VvSsDNWj5r5uBzvAynv70GKo4P6zxo1+z71pOt2bQHU9osPW2KUWRQX6/kelPj3Hd/6m206fbDGFk5zw4eolienwCMFvl3IkiHIAeAl2YPDM72AjFvEbKwA/8e6Q4tROOG38wT0xWWrtrnhrW4+zvblQ15TpEn0clR4pN8/evR/Hw334/sQ+Hc6bMlsx7FXs7fbffUVMlSYwYnjzD7+Qs0HvGqveTjOh1IB1f3KRJQuhRUcvbKy90BH82uDhYOmYCv6J0a67YSTXWd5cZnD99tHNASlF+O8DWXM5TfuUnDbchn4UgjWzEZWQiOnNOYGnEUwC3GDZslRxmUUSvIXRSWvfGweluooNYTzediEDzRHH6fau5i0TX3hYkmppOr5ctMQA4rN6cAhohX6ZpKtWd/SRa1vyOzC4sFHF3YFknevasA5SGkeWYmuiDIPd6HeH62IR/nNlsQ2GU8f64CraewiiihA8vQEGxZJIg0qrKiF/Db1ETXoeYmMAdaAY6/p4RXkdOibfaDPhVCAr9QP7c+gNlGmQ/8fK9Ni/A2F6tkyf3s3zZgDb8nRa43ZGTTmRhNrXtOGDe/r9wMWZgJgkXy0qE=
+  on:
+    tags: true
+    branch: PR-pypi-support

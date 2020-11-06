@@ -11,7 +11,6 @@ TMPFOLDER=/tmp/install-$(PACKAGE)
 help:  ## Show this help.
 	@grep '##' Makefile| sed -e '/@/d' | sed -r 's,(.*?:).*##(.*),\1\2,g'
 
-
 clean: ## Clean repository via "git clean -fdX"
 	git clean -fdX
 
@@ -33,9 +32,6 @@ ifneq ($(ISINST),0)
 else
 	echo 'already uninstalled $(PACKAGE)'
 endif
-
-test: ## Run tests
-	python setup.py test
 
 dist: clean ## Build setuptools dist
 	python setup.py sdist bdist_wheel
