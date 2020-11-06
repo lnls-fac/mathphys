@@ -8,9 +8,7 @@ git:
   submodules: false
   depth: false
 
-branches:
-  only:
-    - PR-pypi-support
+if: branch = master OR tag IS present
 
 script:
   - git describe --tags | sed -e 's/^v//g' > mathphys/VERSION
