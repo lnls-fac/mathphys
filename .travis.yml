@@ -8,6 +8,10 @@ git:
   submodules: false
   depth: false
 
+branches:
+  only:
+    - PR-pypi-support
+
 script:
   - git describe --tags | sed -e 's/^v//g' > mathphys/VERSION
 
