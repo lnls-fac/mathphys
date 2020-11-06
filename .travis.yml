@@ -12,7 +12,6 @@ script:
   - git describe --tags | sed -e 's/^v//g' > mathphys/VERSION
 
 deploy:
-  skip_cleanup: true
   provider: pypi
   username: __token__
   password:
