@@ -1,15 +1,21 @@
 #!/usr/bin/env python-sirius
 """Setup module."""
 
-from setuptools import setup
+from setuptools import setup, find_namespace_packages
+import pkg_resources
 
-with open("README.md", "r") as _f:
+
+def get_abs_path(relative):
+    return pkg_resources.resource_filename(__name__, relative)
+
+
+with open(get_abs_path("README.md"), "r") as _f:
     _long_description = _f.read().strip()
 
-with open("VERSION", "r") as _f:
+with open(get_abs_path("mathphys/VERSION"), "r") as _f:
     __version__ = _f.read().strip()
 
-with open("requirements.txt", "r") as _f:
+with open(get_abs_path("requirements.txt"), "r") as _f:
     _requirements = _f.read().strip().split("\n")
 
 setup(
@@ -29,8 +35,8 @@ setup(
         "Topic :: Scientific/Engineering",
     ],
     packages=["mathphys"],
+    include_package_data=True,
     install_requires=_requirements,
-    package_data={"mathphys": ["VERSION", "data/d_touschek.npz"]},
     test_suite="tests",
     python_requires=">=3.4",
     zip_safe=False,
