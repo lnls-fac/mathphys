@@ -16,7 +16,7 @@ _pascal = _u.kilogram / (_u.meter * _u.second**2)
 
 # --- exact --
 
-light_speed = 299792458 * (_u.meter/_u.second)
+light_speed = 299792458 * (_u.meter / _u.second)
 
 gas_constant = 8.314462618 * (_joule / _u.mole / _u.kelvin)
 
