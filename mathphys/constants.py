@@ -14,7 +14,7 @@ _pascal = _u.kilogram / (_u.meter * _u.second**2)
 # physical constants
 # ==================
 
-# --- exact --
+# --- exact by definition --
 
 light_speed = 299792458 * (_u.meter / _u.second)
 
