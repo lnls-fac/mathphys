@@ -24,14 +24,14 @@ boltzmann_constant = 1.380649e-23 * (_joule / _u.kelvin)
 
 avogadro_constant = 6.02214076e23 * (1 / _u.mole)
 
-elementary_charge = 1.602176634e-19 * _coulomb
+elementary_charge = 1.602176634e-19 * (_coulomb)
 
-reduced_planck_constant = 1.054571817e-34 * _joule * _u.second
+reduced_planck_constant = 1.054571817e-34 * (_joule * _u.second)
 
 # --- measured ---
 
 # 2021-04-15 - https://physics.nist.gov/cgi-bin/cuu/Value?me|search_for=electron+mass
-electron_mass = 9.1093837015e-31 * _u.kilogram
+electron_mass = 9.1093837015e-31 * (_u.kilogram)
 
 # 2021-04-15 - https://physics.nist.gov/cgi-bin/cuu/Value?mu0|search_for=vacuum+permeability
 vacuum_permeability = 1.25663706212e-6 * \
