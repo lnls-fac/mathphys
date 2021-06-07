@@ -1,37 +1,20 @@
-PACKAGE:=$(shell basename $(shell pwd))
-ISINST=$(shell pip show $(PACKAGE) | wc -l )
-TMPFOLDER=/tmp/install-$(PACKAGE)
-
-.PHONY = clean install uninstall test dist distupload distinstall disttest dist distupload distinstall disttest  disttestupload disttestinstall
-
 ## ------------------------
 ## mathphys - Makefile help
 ## ------------------------
 
-help:  ## Show this help.
-	@grep '##' Makefile| sed -e '/@/d' | sed -r 's,(.*?:).*##(.*),\1\2,g'
+PACKAGE = $(shell basename $(shell pwd))
+
+install: clean ## Install packge using the local repository
+	sudo ./setup.py install --single-version-externally-managed --compile --force --record /dev/null
+
+develop: clean ## Install in editable mode (i.e. setuptools "develop mode")
+	sudo ./setup.py develop
 
 clean: ## Clean repository via "git clean -fdX"
 	git clean -fdX
 
-develop: uninstall ## Install in editable mode (i.e. setuptools "develop mode")
-	pip install --no-deps -e ./
-
-install: uninstall ## Install packge using the local repository
-ifneq (, $(wildcard $(TMPFOLDER)))
-	rm -rf /tmp/install-$(PACKAGE)
-endif
-	cp -rRL ../$(PACKAGE) /tmp/install-$(PACKAGE)
-	cd /tmp/install-$(PACKAGE)/; pip install --no-deps ./
-	rm -rf /tmp/install-$(PACKAGE)
-
-# known issue: It will fail to uninstall scripts if they were installed in develop mode
-uninstall: clean ## Remove package
-ifneq ($(ISINST),0)
-	pip uninstall -y $(PACKAGE)
-else
-	echo 'already uninstalled $(PACKAGE)'
-endif
+help:  ## Show this help.
+	@grep '##' Makefile| sed -e '/@/d' | sed -r 's,(.*?:).*##(.*),\1\2,g'
 
 dist: clean ## Build setuptools dist
 	python setup.py sdist bdist_wheel
