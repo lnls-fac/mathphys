@@ -1,6 +1,11 @@
 mathphys
 ========
 
+![Latest tag](https://img.shields.io/github/tag/lnls-fac/mathphys.svg?style=flat)
+[![Latest release](https://img.shields.io/github/release/lnls-fac/mathphys.svg?style=flat)](https://github.com/lnls-fac/mathphys/releases)
+[![PyPI version fury.io](https://badge.fury.io/py/mathphys.svg)](https://pypi.python.org/pypi/mathphys/)
+
+
 Python library with math functions, physical constants and auxiliary functions
 
 For installation instructions, read INSTALL.
