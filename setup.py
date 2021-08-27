@@ -37,7 +37,7 @@ setup(
     packages=["mathphys"],
     include_package_data=True,
     install_requires=_requirements,
-    test_suite="test",
+    test_suite="tests",
     python_requires=">=3.4",
     zip_safe=False,
 )
