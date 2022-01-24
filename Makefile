@@ -10,7 +10,7 @@ ifeq ($(CONDA_PREFIX),)
 	PIP=pip-sirius
 endif
 
- ## Install packge using the local repository
+ ## Install package using the local repository
 install: clean uninstall
 	$(PREFIX) $(PIP) install --no-deps --compile ./
 
