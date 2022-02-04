@@ -3,12 +3,26 @@
 ## ------------------------
 
 PACKAGE = $(shell basename $(shell pwd))
+PREFIX=
+PIP=pip
+ifeq ($(CONDA_PREFIX),)
+	PREFIX=sudo -H
+	PIP=pip-sirius
+endif
 
-install: clean ## Install packge using the local repository
-	sudo ./setup.py install --single-version-externally-managed --compile --force --record /dev/null
+ ## Install package using the local repository
+install: clean uninstall
+	$(PREFIX) $(PIP) install --no-deps --compile ./
 
-develop: clean ## Install in editable mode (i.e. setuptools "develop mode")
-	sudo ./setup.py develop
+uninstall:
+	$(PREFIX) $(PIP) uninstall -y $(PACKAGE)
+
+ ## Install in editable mode (i.e. setuptools "develop mode")
+develop-install: clean develop-uninstall
+	$(PIP) install --no-deps -e ./
+
+develop-uninstall:
+	$(PIP) uninstall -y $(PACKAGE)
 
 clean: ## Clean repository via "git clean -fdX"
 	git clean -fdX
@@ -32,4 +46,3 @@ disttestinstall: ##  Install package from Test PyPi
 	python -m pip install --index-url https://test.pypi.org/simple/ --no-deps $(PACKAGE)==$(shell cat "VERSION")
 
 disttest: dist disttestupload disttestinstall test ## Build the package, upload to Test PyPi, install from PyPi and run tests
-

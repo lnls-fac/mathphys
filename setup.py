@@ -1,7 +1,7 @@
 #!/usr/bin/env python-sirius
 """Setup module."""
 
-from setuptools import setup, find_namespace_packages
+from setuptools import setup
 import pkg_resources
 
 
