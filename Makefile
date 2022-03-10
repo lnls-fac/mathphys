@@ -11,26 +11,24 @@ ifeq ($(CONDA_PREFIX),)
 endif
 
  ## Install package using the local repository
-install: clean uninstall
+install: uninstall
 	$(PREFIX) $(PIP) install --no-deps --compile ./
+	$(PREFIX) git clean -fdX
 
 uninstall:
 	$(PREFIX) $(PIP) uninstall -y $(PACKAGE)
 
  ## Install in editable mode (i.e. setuptools "develop mode")
-develop-install: clean develop-uninstall
+develop-install: develop-uninstall
 	$(PIP) install --no-deps -e ./
 
 develop-uninstall:
 	$(PIP) uninstall -y $(PACKAGE)
 
-clean: ## Clean repository via "git clean -fdX"
-	git clean -fdX
-
 help:  ## Show this help.
 	@grep '##' Makefile| sed -e '/@/d' | sed -r 's,(.*?:).*##(.*),\1\2,g'
 
-dist: clean ## Build setuptools dist
+dist:  ## Build setuptools dist
 	python setup.py sdist bdist_wheel
 
 distupload: ## Upload package dist to PyPi
