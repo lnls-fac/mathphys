@@ -11,7 +11,6 @@ from . import base_units as _u
 _volt = (_u.kilogram * _u.meter**2) / (_u.ampere * _u.second**2)
 _coulomb = _u.second * _u.ampere
 _joule = _u.kilogram * _u.meter**2 / _u.second**2
-_pascal = _u.kilogram / (_u.meter * _u.second**2)
 
 
 # physical constants
