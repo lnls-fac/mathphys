@@ -105,7 +105,7 @@ def repository_info(repo_path):
     """
     repo_info = {}
     try:
-        repo = _Repo(repo_path)
+        repo = _Repo(repo_path, search_parent_directories=True)
     except:
         print(f'Repository path not found: {repo_path:s}.')
         return repo_info
