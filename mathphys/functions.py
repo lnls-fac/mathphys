@@ -60,13 +60,14 @@ def get_namedtuple(name, field_names, values=None):
     return _namedtuple(name, field_names)(*values)
 
 
-def save_pickle(data, fname, overwrite=False):
+def save_pickle(data, fname, overwrite=False, makedirs=False):
     """Save data to file in pickle format.
 
     Inputs:
         data - python object to be saved.
         fname - name of the file to be saved. With or without ".pickle"."
         overwrite - whether to overwrite existing file (Optional).
+        makedirs - create dir, if it does not exist.
 
     Raises `FileExistsError` in case `overwrite` is `False` and file exists.
     """
@@ -74,6 +75,10 @@ def save_pickle(data, fname, overwrite=False):
         fname += '.pickle'
     if not overwrite and _os.path.isfile(fname):
         raise FileExistsError(f'file {fname} already exists.')
+    if makedirs:
+        dirname = _os.path.dirname(fname)
+        if not _os.path.exists(dirname):
+            _os.makedirs(dirname)
     with open(fname, 'wb') as fil:
         _pickle.dump(data, fil)
 
