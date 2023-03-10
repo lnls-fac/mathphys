@@ -1,4 +1,4 @@
-"""Image Fitting Classes."""
+"""Image Processing Classes."""
 
 
 import numpy as _np

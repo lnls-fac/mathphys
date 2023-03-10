@@ -15,7 +15,7 @@ from . import images
 
 __all__ = [
     'base_units', 'units', 'constants', 'functions', 'beam_optics',
-    'images',
+    'imgproc',
     ]
 
 with open(_os.path.join(__path__[0], 'VERSION'), 'r') as _f:
