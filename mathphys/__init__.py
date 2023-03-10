@@ -11,7 +11,7 @@ from . import units
 from . import constants
 from . import functions
 from . import beam_optics
-from . import images
+from . import imgproc
 
 __all__ = [
     'base_units', 'units', 'constants', 'functions', 'beam_optics',
