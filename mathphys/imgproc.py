@@ -160,8 +160,7 @@ class CurveFitGauss:
             amp = _np.exp(pfit[2] + (mu/sigma)**2/2)
             mu += center
         else:
-            sigma, mu, amp, offset = [0] * 4
-            mu += center
+            sigma, mu, amp, offset = [float('nan')] * 4
         return sigma, mu, amp, offset
 
     @staticmethod
@@ -181,7 +180,7 @@ class CurveFitGauss:
             roi_gaussian_error = 100 * _np.sqrt(error)
         else:
             roi_gaussian_fit = 0 * proj
-            roi_gaussian_error = float('Inf')
+            roi_gaussian_error = float('nan')
         fit = (param, roi_gaussian_fit, roi_gaussian_error)
         return fit
 
