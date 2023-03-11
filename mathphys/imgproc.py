@@ -167,11 +167,8 @@ class CurveFitGauss:
     def calc_fit(image, proj, indcs, center):
         """."""
         # get roi gaussian fit
-        # proj, indcs, center = \
-        #     image.roiy_proj, image.roiy_indcs, image.roiy_center
         param = CurveFitGauss.fit_gaussian(
             proj, indcs, center, image.intensity_min)
-        # sigmay, meany, ampy, offsety = paramy
         if param[0] > 0:
             gfit, *_ = CurveFitGauss.generate_gaussian_1d(indcs, *param)
             roi_gaussian_fit = gfit
@@ -309,6 +306,14 @@ class Image1D:
         res += f'\nsaturated       : {self.is_saturated}'
         return res
 
+    @staticmethod
+    def get_roi(data, roi):
+        """."""
+        roi = roi or [0, data.size]
+        roi[0] = max(roi[0], 0)
+        roi[1] = min(roi[1], data.size)
+        return roi
+
     # --- private methods ---
     
     def _update_image(self, data):
@@ -436,8 +441,13 @@ class Image2D:
 
     @staticmethod
     def get_roi(data, roix, roiy):
+        """."""
         roiy = roiy or [0, data.shape[0]]
         roix = roix or [0, data.shape[1]]
+        roiy[0] = max(roiy[0], 0)
+        roix[0] = max(roix[0], 0)
+        roiy[1] = min(roiy[1], data.shape[0])
+        roix[1] = min(roix[1], data.shape[1])
         return roix, roiy
 
     @staticmethod
@@ -505,6 +515,11 @@ class Image1D_ROI(Image1D):
         """Image roi fwhm."""
         return self._roi_fwhm
 
+    def update_roi_with_fwhm(self, fwhm_factor=2.0):
+        """."""
+        roi = Image1D_ROI.calc_roi_with_fwhm(self, fwhm_factor)
+        self.roi = roi  # triggers recalc of center, fwhm
+
     def imshow(
             self, fig=None, axis=None, crop = None,
             color_ellip=None, color_roi=None):
@@ -557,7 +572,7 @@ class Image1D_ROI(Image1D):
     def _update_image_roi(self, roi):
         """."""
         # print('Image1D._update_image_roi')
-        roi = roi or [0, self._data.size]    
+        roi = Image1D_ROI.get_roi(self._data, roi)
         indcs = Image1D_ROI._calc_indcs(self._data, roi)
         proj = self.data[slice(*roi)]
         hmax = _np.where(proj > (proj.max() - self.data.min())/2)[0]
@@ -580,6 +595,14 @@ class Image1D_ROI(Image1D):
     @staticmethod
     def _trim_image(image, roi):
         return image[slice(*roi)]
+
+    @staticmethod
+    def calc_roi_with_fwhm(image, fwhm_factor):
+        """."""
+        roi1 = int(image.roi_center - fwhm_factor * (image.roi_fwhm/2))
+        roi2 = int(image.roi_center + fwhm_factor * (image.roi_fwhm/2))
+        roi = [roi1, roi2]
+        return Image1D.get_roi(image.data, roi)
 
 
 class Image2D_ROI(Image2D):
@@ -636,50 +659,22 @@ class Image2D_ROI(Image2D):
         """."""
         self._update_image_roi(*value)
 
+    def update_roi_with_fwhm(self, fwhmx_factor=2, fwhmy_factor=2):
+        """."""
+        self.imagex.update_roi_with_fwhm(fwhm_factor=fwhmx_factor)
+        self.imagey.update_roi_with_fwhm(fwhm_factor=fwhmy_factor)
+
     def imshow(
             self, fig=None, axis=None,
             cropx = None, cropy = None,
             color_ellip=None, color_roi=None):
         """."""
-        color_ellip = None if color_ellip == 'no' else color_ellip or 'tab:red'
-        color_roi = None if color_roi == 'no' else color_roi or 'yellow'
-        cropx, cropy = Image2D.get_roi(self.data, cropx, cropy)
-        x0, y0 = cropx[0], cropy[0]
 
-        if None in (fig, axis):
-            fig, axis = _plt.subplots()
-
-        # plot image
-        data = Image2D_ROI._trim_image(self.data, cropx, cropy)
-        axis.imshow(data, extent=None)
-
-        if color_ellip:
-            # plot center
-            axis.plot(
-                self.imagex.roi_center - x0, self.imagey.roi_center - y0, 'o',
-                ms=2, color=color_ellip)
-
-            # plot intersecting ellipse at half maximum
-            ellipse = _patches.Ellipse(
-                xy=(self.imagex.roi_center - x0, self.imagey.roi_center - y0),
-                width=self.imagex.roi_fwhm, height=self.imagey.roi_fwhm,
-                angle=0, linewidth=1,
-                edgecolor=color_ellip, fill='false', facecolor='none')
-            axis.add_patch(ellipse)
-
-        if color_roi:
-            # plot roi
-            roix1, roix2 = self.roix
-            roiy1, roiy2 = self.roiy
-            width, height = _np.abs(roix2-roix1), _np.abs(roiy2-roiy1)
-            rect = _patches.Rectangle(
-                (roix1 - x0, roiy1 - y0),
-                width, height, linewidth=1, edgecolor=color_roi,
-                fill='False',
-                facecolor='none')
-            axis.add_patch(rect)
-
-        return fig, axis
+        return Image2D_ROI.imshow_images(
+            self.data, self.imagex, self.imagey, self.roix, self.roiy,
+            fig=fig, axis=axis,
+            cropx = cropx, cropy = cropy,
+            color_ellip=color_ellip, color_roi=color_roi)
 
     def create_trimmed(self):
         """Create a new image timmed to roi."""
@@ -709,13 +704,56 @@ class Image2D_ROI(Image2D):
     def _update_image_roi(self, roix, roiy):
         """."""
         # print('Image2D_ROI._update_image_roi')
-        
         roix, roiy = Image2D.get_roi(self.data, roix, roiy)
-        
         data = Image2D.project_image(self._data, 0)
         self._imagey = Image1D_ROI(data=data, roi=roiy)
         data = Image2D.project_image(self._data, 1)
         self._imagex = Image1D_ROI(data=data, roi=roix)
+
+    @staticmethod
+    def imshow_images(data, imagex, imagey, roix, roiy, fig=None, axis=None,
+            cropx = None, cropy = None,
+            color_ellip=None, color_roi=None):
+        """."""
+        color_ellip = None if color_ellip == 'no' else color_ellip or 'tab:red'
+        color_roi = None if color_roi == 'no' else color_roi or 'yellow'
+        cropx, cropy = Image2D.get_roi(data, cropx, cropy)
+        x0, y0 = cropx[0], cropy[0]
+
+        if None in (fig, axis):
+            fig, axis = _plt.subplots()
+
+        # plot image
+        data = Image2D_ROI._trim_image(data, cropx, cropy)
+        axis.imshow(data, extent=None)
+
+        if color_ellip:
+            # plot center
+            axis.plot(
+                imagex.roi_center - x0, imagey.roi_center - y0, 'o',
+                ms=2, color=color_ellip)
+
+            # plot intersecting ellipse at half maximum
+            ellipse = _patches.Ellipse(
+                xy=(imagex.roi_center - x0, imagey.roi_center - y0),
+                width=imagex.roi_fwhm, height=imagey.roi_fwhm,
+                angle=0, linewidth=1,
+                edgecolor=color_ellip, fill='false', facecolor='none')
+            axis.add_patch(ellipse)
+
+        if color_roi:
+            # plot roi
+            roix1, roix2 = roix
+            roiy1, roiy2 = roiy
+            width, height = _np.abs(roix2-roix1), _np.abs(roiy2-roiy1)
+            rect = _patches.Rectangle(
+                (roix1 - x0, roiy1 - y0),
+                width, height, linewidth=1, edgecolor=color_roi,
+                fill='False',
+                facecolor='none')
+            axis.add_patch(rect)
+
+        return fig, axis
 
     @staticmethod
     def _trim_image(image, roix, roiy):
@@ -904,6 +942,29 @@ class Image1D_Fit(Image1D_ROI):
         """."""
         self._is_saturated = value is True
 
+    def plot_projection(
+            self, fig=None, axis=None):
+        """."""
+        if None in (fig, axis):
+            fig, axis = _plt.subplots()
+
+        color = [0, 0.7, 0]
+
+        axis.plot(
+            self.roi_indcs, self.roi_proj,
+            color=color, alpha=1.0,
+            lw=5, label='roi_proj')
+        vecy, vecx = self.roi_fit
+        if vecy is not None:
+            axis.plot(
+                vecx, vecy, color=[0.5, 1, 0.5], alpha=1.0,
+                lw=2, label='roix_fit')
+
+        axis.legend()
+        axis.grid()
+        axis.set_ylabel('ROI pixel indices')
+        axis.set_ylabel('Projection Intensity')
+
     def __str__(self):
         """."""
         res = super().__str__()
@@ -955,6 +1016,26 @@ class Image2D_Fit(Image2D):
         return self._fitx
 
     @property
+    def roiy(self):
+        """."""
+        return self.fity.roi
+
+    @roiy.setter
+    def roiy(self, value):
+        """."""
+        self._update_image_fit(roix=self.fitx.roi, roiy=value)
+
+    @property
+    def roix(self):
+        """."""
+        return self.fitx.roi
+
+    @roix.setter
+    def roix(self, value):
+        """."""
+        self._update_image_fit(roix=value, roiy=self.fity.roi)
+
+    @property
     def roi(self):
         """."""
         return self.fitx.roi, self.fity.roi
@@ -964,10 +1045,26 @@ class Image2D_Fit(Image2D):
         """."""
         self._update_image_fit(*value)
 
+    def update_roi_with_fwhm(self, fwhmx_factor=2, fwhmy_factor=2):
+        """."""
+        self.fitx.update_roi_with_fwhm(fwhm_factor=fwhmx_factor)
+        self.fity.update_roi_with_fwhm(fwhm_factor=fwhmy_factor)
+
     @property
     def angle(self):
         """."""
         return self._angle
+
+    def imshow(
+            self, fig=None, axis=None,
+            cropx = None, cropy = None,
+            color_ellip=None, color_roi=None):
+        """."""
+        return Image2D_ROI.imshow_images(
+            self.data, self.fitx, self.fity, self.fitx.roi, self.fity.roi,
+            fig=fig, axis=axis,
+            cropx = cropx, cropy = cropy,
+            color_ellip=color_ellip, color_roi=color_roi)
 
     def plot_projections(
             self, fig=None, axis=None):
