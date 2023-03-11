@@ -178,8 +178,9 @@ class CurveFitGauss:
             roi_gaussian_fit = gfit
             error = _np.sum((gfit - proj)**2)
             error /= _np.sum(proj**2)
-            roi_gaussian_error = _np.sqrt(error)
+            roi_gaussian_error = 100 * _np.sqrt(error)
         else:
+            roi_gaussian_fit = 0 * proj
             roi_gaussian_error = float('Inf')
         fit = (param, roi_gaussian_fit, roi_gaussian_error)
         return fit
@@ -404,7 +405,7 @@ class Image2D:
 
     def imshow(self, fig=None, axis=None, cropx=None, cropy=None):
         """."""
-        cropx, cropy = Image2D.update_roi(self.data, cropx, cropy)
+        cropx, cropy = Image2D.get_roi(self.data, cropx, cropy)
 
         if None in (fig, axis):
             fig, axis = _plt.subplots()
@@ -435,7 +436,7 @@ class Image2D:
         return res
 
     @staticmethod
-    def update_roi(data, roix, roiy):
+    def get_roi(data, roix, roiy):
         roiy = roiy or [0, data.shape[0]]
         roix = roix or [0, data.shape[1]]
         return roix, roiy
@@ -643,7 +644,7 @@ class Image2D_ROI(Image2D):
         """."""
         color_ellip = None if color_ellip == 'no' else color_ellip or 'tab:red'
         color_roi = None if color_roi == 'no' else color_roi or 'yellow'
-        cropx, cropy = Image2D.update_roi(self.data, cropx, cropy)
+        cropx, cropy = Image2D.get_roi(self.data, cropx, cropy)
         x0, y0 = cropx[0], cropy[0]
 
         if None in (fig, axis):
@@ -710,7 +711,7 @@ class Image2D_ROI(Image2D):
         """."""
         # print('Image2D_ROI._update_image_roi')
         
-        roix, roiy = Image2D.update_roi(self.data, roix, roiy)
+        roix, roiy = Image2D.get_roi(self.data, roix, roiy)
         
         data = Image2D.project_image(self._data, 0)
         self._imagey = Image1D_ROI(data=data, roi=roiy)
@@ -789,7 +790,7 @@ class Image2D_CMom(Image2D_ROI):
         """."""
         color_ellip = None if color_ellip == 'no' else color_ellip or 'tab:red'
         color_roi = None if color_roi == 'no' else color_roi or 'yellow'
-        cropx, cropy = Image2D.update_roi(self.data, cropx, cropy)
+        cropx, cropy = Image2D.get_roi(self.data, cropx, cropy)
         x0, y0 = cropx[0], cropy[0]
 
         if None in (fig, axis):
@@ -910,7 +911,7 @@ class Image1D_Fit(Image1D_ROI):
         res += f'\nroi_amplitude   : {self.roi_amplitude}'
         res += f'\nroi_mean        : {self.roi_mean}'
         res += f'\nroi_sigma       : {self.roi_sigma}'
-        res += f'\nroi_fit_err     : {100*self.roi_fit_error} %'
+        res += f'\nroi_fit_err     : {self.roi_fit_error} %'
 
         return res
 
@@ -931,7 +932,7 @@ class Image2D_Fit(Image2D):
 
     """2D Image Fit."""
 
-    def __init__(self, *args, curve_fit=None, **kwargs):
+    def __init__(self, roix=None, roiy=None, curve_fit=None, *args, **kwargs):
         """."""
         # benchmark for sizes=(1024, 1280)
         #   2.7 ms ± 23.2 µs per loop
@@ -942,7 +943,7 @@ class Image2D_Fit(Image2D):
         self._angle = 0
         self._curve_fit = curve_fit or CurveFitGauss
         super().__init__(*args, **kwargs)
-        self._update_image_fit()
+        self._update_image_fit(roix=roix, roiy=roiy)
 
     @property
     def fity(self):
@@ -963,6 +964,11 @@ class Image2D_Fit(Image2D):
     def roi(self, value):
         """."""
         self._update_image_fit(*value)
+
+    @property
+    def angle(self):
+        """."""
+        return self._angle
 
     def plot_projections(
             self, fig=None, axis=None):
@@ -1005,13 +1011,13 @@ class Image2D_Fit(Image2D):
         res += f'\nroi_amplitude   : {self.fitx.roi_amplitude}'
         res += f'\nroi_mean        : {self.fitx.roi_mean}'
         res += f'\nroi_sigma       : {self.fitx.roi_sigma}'
-        res += f'\nroi_fit_err     : {100*self.fitx.roi_fit_error} %'
+        res += f'\nroi_fit_err     : {self.fitx.roi_fit_error} %'
         res += '\n--- fity ---\n'
         res += self.fity.__str__()
         res += f'\nroi_amplitude   : {self.fity.roi_amplitude}'
         res += f'\nroi_mean        : {self.fity.roi_mean}'
         res += f'\nroi_sigma       : {self.fity.roi_sigma}'
-        res += f'\nroi_fit_err     : {100*self.fity.roi_fit_error} %'
+        res += f'\nroi_fit_err     : {self.fity.roi_fit_error} %'
 
         return res
 
@@ -1019,7 +1025,7 @@ class Image2D_Fit(Image2D):
         """."""
         # print('Image2D_Fit._update_image_fit')
 
-        roix, roiy = Image2D.update_roi(self.data, roix, roiy)
+        roix, roiy = Image2D.get_roi(self.data, roix, roiy)
         data = Image2D.project_image(self._data, 0)
         self._fity = Image1D_Fit(data=data,
             roi=roiy, curve_fit=self._curve_fit)
