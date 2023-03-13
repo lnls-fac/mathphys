@@ -309,7 +309,8 @@ class Image1D:
     @staticmethod
     def get_roi(data, roi):
         """."""
-        roi = roi or [0, data.size]
+        if roi is None:
+            roi = [0, data.size]
         roi[0] = max(roi[0], 0)
         roi[1] = min(roi[1], data.size)
         return roi
@@ -442,8 +443,10 @@ class Image2D:
     @staticmethod
     def get_roi(data, roix, roiy):
         """."""
-        roiy = roiy or [0, data.shape[0]]
-        roix = roix or [0, data.shape[1]]
+        if roiy is None:
+            roiy = [0, data.shape[0]]
+        if roix is None:
+            roix = [0, data.shape[1]]
         roiy[0] = max(roiy[0], 0)
         roix[0] = max(roix[0], 0)
         roiy[1] = min(roiy[1], data.shape[0])
