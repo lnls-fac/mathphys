@@ -61,10 +61,9 @@ class CurveFitGauss:
 
         indcs, sigma, mean, amplitude, \
             offset, rand_amplitude, saturation_threshold = \
-                CurveFitGauss._process_args(
-                    indcs, sigma, mean, amplitude,
-                    offset, rand_amplitude, saturation_threshold,
-                    )
+            CurveFitGauss._process_args(
+                indcs, sigma, mean, amplitude,
+                offset, rand_amplitude, saturation_threshold)
         data = offset + amplitude * _np.exp(-0.5 * ((indcs - mean)/sigma)**2)
         if rand_amplitude is not None:
             data += (_np.random.rand(*data.shape) - 0.5) * rand_amplitude
@@ -109,15 +108,15 @@ class CurveFitGauss:
 
         indcsx, sigmax, meanx, \
             amplitude, offset, rand_amplitude, saturation_threshold = \
-                CurveFitGauss._process_args(
-                    indcsx, sigmax, meanx,
-                    amplitude, offset, rand_amplitude, saturation_threshold)
+            CurveFitGauss._process_args(
+                indcsx, sigmax, meanx,
+                amplitude, offset, rand_amplitude, saturation_threshold)
 
         indcsy, sigmay, meany, \
             amplitude, offset, rand_amplitude, saturation_threshold = \
-                CurveFitGauss._process_args(
-                    indcsy, sigmay, meany,
-                    amplitude, offset, rand_amplitude, saturation_threshold)
+            CurveFitGauss._process_args(
+                indcsy, sigmay, meany,
+                amplitude, offset, rand_amplitude, saturation_threshold)
 
         y = indcsy - meany
         x = indcsx - meanx
@@ -206,6 +205,37 @@ class CurveFitGauss:
             offset, rand_amplitude, saturation_threshold
             )
         return res
+
+
+class ScipyFitGauss(CurveFitGauss):
+    """."""
+
+    def __init__(self, scipy_curv_fit_func):
+        """."""
+        self._scipy_curve_fitfunc = scipy_curv_fit_func
+
+    @staticmethod
+    def fit_gaussian(x, sigma, mu, amp, offset):
+        """."""
+        return offset + amp * _np.exp(-0.5*((x - mu)/sigma)**2)
+
+    def calc_fit(self, image, proj, indcs, center):
+        """."""
+        # get roi gaussian fit
+        # _np = np
+        offset = image.intensity_min
+        amp = image.intensity_max - image.intensity_min
+        mu = image.roi_center
+        sigma = max(1, image.roi_fwhm / 2.35)
+        p0 = (sigma, mu, amp, offset)
+        param, _ = self._scipy_curve_fitfunc(ScipyFitGauss.fit_gaussian, indcs, proj, p0)
+        gfit = ScipyFitGauss.fit_gaussian(indcs, param[0], param[1], param[2], param[3])
+        roi_gaussian_fit = gfit
+        error = _np.sum((gfit - proj)**2)
+        error /= _np.sum(proj**2)
+        roi_gaussian_error = 100 * _np.sqrt(error)
+        fit = (param, roi_gaussian_fit, roi_gaussian_error)
+        return fit
 
 
 class Image1D:
@@ -578,8 +608,15 @@ class Image1D_ROI(Image1D):
         roi = Image1D_ROI.get_roi(self._data, roi)
         indcs = Image1D_ROI._calc_indcs(self._data, roi)
         proj = self.data[slice(*roi)]
-        hmax = _np.where(proj > (proj.max() - self.data.min())/2)[0]
-        fwhm = hmax[-1] - hmax[0]
+
+        # projdiff = proj.max() - self.data.min()
+        # hmax = _np.where(proj > projdiff/2)[0]
+        # fwhm = hmax[-1] - hmax[0]
+        # center = indcs[0] + _np.argmax(proj)
+
+        projdiff = self.data.max() - self.data.min()
+        hmax = _np.where(proj > projdiff/2)[0]
+        fwhm = hmax[-1] - hmax[0] if len(hmax) > 1 else 0
         center = indcs[0] + _np.argmax(proj)
 
         self._roi, self._roi_indcs, self._roi_proj, \
@@ -714,8 +751,9 @@ class Image2D_ROI(Image2D):
         self._imagex = Image1D_ROI(data=data, roi=roix)
 
     @staticmethod
-    def imshow_images(data, imagex, imagey, roix, roiy, fig=None, axis=None,
-            cropx = None, cropy = None,
+    def imshow_images(
+            data, imagex, imagey, roix, roiy, fig=None, axis=None,
+            cropx=None, cropy=None,
             color_ellip=None, color_roi=None):
         """."""
         color_ellip = None if color_ellip == 'no' else color_ellip or 'tab:red'
@@ -988,6 +1026,7 @@ class Image1D_Fit(Image1D_ROI):
             self._curve_fit.calc_fit(
                 self, self.roi_proj, self.roi_indcs, self.roi_center)
         self._roi_sigma, self._roi_mean, self._roi_amp, _ = param
+        # print('roi_fit: ', roi_fit)
         self._roi_fit, self._roi_fit_error = roi_fit, roi_error
 
 
