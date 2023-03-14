@@ -39,9 +39,9 @@ class CurveFitGauss:
             indcs, sigma=None, mean=0, amplitude=0,
             offset=0, rand_amplitude=0, saturation_threshold=None):
         """Generate a gaussian with given distribution parameters.
-        
+
         Args:
-            indcs (int | tuple | list | np.array) : pixel index array def. 
+            indcs (int | tuple | list | np.array) : pixel index array def.
             amp (float) : gaussian intensity amplitude
             offset (float) : gaussian intensity offset
             rand_amp (float) : gaussian point intensity random amplitude
@@ -80,7 +80,7 @@ class CurveFitGauss:
             angle=0
             ):
         """Generate a bigaussian with given distribution parameters.
-        
+
         Args:
             indcs (tuple(2) | list(2) | np.array(2)) :
                 2-component (y and x) pixel index definition. Each component is
@@ -106,7 +106,7 @@ class CurveFitGauss:
         indcsx, indcsy = indcs
         sigmax, sigmay = sigma if sigma is not None else [None] * 2
         meanx, meany = mean if mean is not None else [None] * 2
-        
+
         indcsx, sigmax, meanx, \
             amplitude, offset, rand_amplitude, saturation_threshold = \
                 CurveFitGauss._process_args(
@@ -141,7 +141,7 @@ class CurveFitGauss:
         # benchmark for size=1280
         #   9.28 µs ± 407 ns per loop
         #   (mean ± std. dev. of 7 runs, 100000 loops each)
-    
+
         new_data = data * (maxval/data.max())
         return new_data
 
@@ -183,8 +183,8 @@ class CurveFitGauss:
 
     @staticmethod
     def _process_args(
-        indcs, sigma, mean, amplitude,
-        offset, rand_amplitude, saturation_threshold):
+            indcs, sigma, mean, amplitude,
+            offset, rand_amplitude, saturation_threshold):
         sigma = sigma or float('Inf')
         if isinstance(indcs, (int, float)):
             indcs = _np.arange(int(indcs))
@@ -289,7 +289,7 @@ class Image1D:
         return fig, axis
 
     def generate_gaussian_1d(self, indcs=None, *args, **kwargs):
-        """Generate a gaussian with given distribution parameters."""        
+        """Generate a gaussian with given distribution parameters."""
         indcs = indcs or self.size
         return CurveFitGauss.generate_gaussian_1d(
             indcs=indcs, *args, **kwargs)
@@ -316,7 +316,7 @@ class Image1D:
         return roi
 
     # --- private methods ---
-    
+
     def _update_image(self, data):
         """."""
         # # print('Image1D._update_image')
@@ -338,7 +338,7 @@ class Image2D:
         # benchmark for sizes=(1024, 1280):
         #   558 µs ± 121 µs per loop
         #   (mean ± std. dev. of 7 runs, 1000 loops each)
-        
+
         self._data = None
         self._saturation_threshold = saturation_threshold
         self._is_saturated = None
@@ -421,7 +421,7 @@ class Image2D:
         return fig, axis
 
     def generate_gaussian_2d(self, indcsx=None, indcsy=None, *args, **kwargs):
-        """Generate a bigaussian with distribution parameters."""    
+        """Generate a bigaussian with distribution parameters."""
         indcsy = indcsy or self.sizey
         indcsx = indcsx or self.sizex
         indcs = [indcsx, indcsy]
@@ -460,7 +460,7 @@ class Image2D:
         return image
 
     # --- private methods ---
-    
+
     def _update_image(self, data):
         """."""
         # print('Image2D._update_image')
@@ -487,7 +487,7 @@ class Image1D_ROI(Image1D):
         self._roi_fwhm = None
         super().__init__(data=data, *args, **kwargs)
         self._update_image_roi(roi)
-        
+
     @property
     def roi(self):
         """."""
@@ -581,7 +581,7 @@ class Image1D_ROI(Image1D):
         hmax = _np.where(proj > (proj.max() - self.data.min())/2)[0]
         fwhm = hmax[-1] - hmax[0]
         center = indcs[0] + _np.argmax(proj)
-        
+
         self._roi, self._roi_indcs, self._roi_proj, \
             self._roi_center, self._roi_fwhm = roi, indcs, proj, center, fwhm
 
@@ -684,7 +684,7 @@ class Image2D_ROI(Image2D):
         # benchmark for sizes=(1024, 1280), roi all
         #   187 µs ± 2.56 µs per loop
         #   (mean ± std. dev. of 7 runs, 10000 loops each)
-    
+
         data = Image2D_ROI._trim_image(self.data, self.roix, self.roiy)
         return Image2D_ROI(data=data)
 
@@ -992,7 +992,6 @@ class Image1D_Fit(Image1D_ROI):
 
 
 class Image2D_Fit(Image2D):
-
     """2D Image Fit."""
 
     def __init__(self, roix=None, roiy=None, curve_fit=None, *args, **kwargs):
@@ -1126,12 +1125,10 @@ class Image2D_Fit(Image2D):
 
         roix, roiy = Image2D.get_roi(self.data, roix, roiy)
         data = Image2D.project_image(self._data, 0)
-        self._fity = Image1D_Fit(data=data,
-            roi=roiy, curve_fit=self._curve_fit)
+        self._fity = Image1D_Fit(
+            data=data, roi=roiy, curve_fit=self._curve_fit)
         self._fity.set_saturation_flag(self.is_saturated)
         data = Image2D.project_image(self._data, 1)
-        self._fitx = Image1D_Fit(data=data,
-            roi=roix, curve_fit=self._curve_fit)
+        self._fitx = Image1D_Fit(
+            data=data, roi=roix, curve_fit=self._curve_fit)
         self._fitx.set_saturation_flag(self.is_saturated)
-
-        
