@@ -979,6 +979,23 @@ class Image1D_Fit(Image1D_ROI):
         """."""
         return self._roi_fit, self.roi_indcs
 
+    @property
+    def invalid_fit(self):
+        """."""
+        is_nan = _np.any(_np.isnan([
+            self.roi_amplitude,
+            self.roi_mean,
+            self.roi_sigma,
+            self.roi_fit_error,
+            ]))
+        is_inf = _np.any(_np.isinf([
+            self.roi_amplitude,
+            self.roi_mean,
+            self.roi_sigma,
+            self.roi_fit_error,
+            ]))
+        return is_nan or is_inf
+
     def set_saturation_flag(self, value):
         """."""
         self._is_saturated = value is True
