@@ -1097,15 +1097,65 @@ class Image2D_Fit(Image2D):
         """."""
         self._update_image_fit(*value)
 
+    @property
+    def angle(self):
+        """."""
+        return self._angle
+
     def update_roi_with_fwhm(self, fwhmx_factor=2, fwhmy_factor=2):
         """."""
         self.fitx.update_roi_with_fwhm(fwhm_factor=fwhmx_factor)
         self.fity.update_roi_with_fwhm(fwhm_factor=fwhmy_factor)
 
-    @property
-    def angle(self):
+    def calc_angle_with_roi(self, sigma_factor, nrpts):
         """."""
-        return self._angle
+        # generate posx grid
+        cx, sx = self.fitx.roi_mean, self.fitx.roi_sigma
+        posx = _np.linspace(cx - sigma_factor*sx, cx + sigma_factor*sx, nrpts)
+        posx = list(set([int(val) for val in posx]))
+        posx = _np.sort(posx)
+
+        images1droi = [Image1D_ROI(data=self.data[:, val]) for val in posx]
+        posy = [image.roi_center for image in images1droi]
+
+        pfit = _np.polyfit(posx, posy, 1)
+        angle = - _np.arctan(pfit[0]) # sign due to vertical dir pixel increase
+
+        return angle
+
+    def calc_mode_sigmas(self):
+        """."""
+        # method:
+        #
+        # [x, y] = R(-angle) [u1, u2]
+        #
+        # R(-angle) = [[C, S], [-S, C]]
+        #
+        # sigmax² = C² sigma1² + S² sigma2²
+        # sigmay² = S² sigma1² + C² sigma2²
+        #
+        # TODO: not working...
+        sigmax = self.fitx.roi_sigma
+        sigmay = self.fity.roi_sigma
+        sigma_max = max(sigmax, sigmay)
+        func, funs = _np.cos(-self.angle), _np.sin(-self.angle)
+
+        det = func**2 - funs**2
+        if abs(det) < 1e-6:
+            return _np.nan, _np.nan
+
+        sigma1sqr = func**2 * sigmax**2 - funs**2 * sigmay**2
+        sigma2sqr = -funs**2 * sigmax**2 + func**2 * sigmay**2
+
+        if sigma1sqr > 0:
+            sigma1 = min(_np.sqrt(sigma1sqr), sigma_max)
+        else:
+            sigma1 = _np.nan
+        if sigma2sqr > 0:
+            sigma2 = min(_np.sqrt(sigma2sqr), sigma_max)
+        else:
+            sigma2 = _np.nan
+        return sigma1, sigma2
 
     def imshow(
             self, fig=None, axis=None,
@@ -1171,6 +1221,7 @@ class Image2D_Fit(Image2D):
 
     def _update_image_fit(self, roix=None, roiy=None):
         """."""
+        # fit projections
         roix, roiy = Image2D.get_roi(self.data, roix, roiy)
         data = Image2D.project_image(self._data, 0)
         self._fity = Image1D_Fit(
@@ -1180,3 +1231,6 @@ class Image2D_Fit(Image2D):
         self._fitx = Image1D_Fit(
             data=data, roi=roix, curve_fit=self._curve_fit)
         self._fitx.set_saturation_flag(self.is_saturated)
+
+        # fit angle
+        self._angle = self.calc_angle_with_roi(sigma_factor=3, nrpts=5)
