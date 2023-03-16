@@ -209,16 +209,16 @@ class FitGaussian:
 class FitGaussianScipy(FitGaussian):
     """."""
 
-    def __init__(self, scipy_curv_fit_func):
+    def __init__(self, curve_fit_func):
         """."""
-        self._scipy_curve_fitfunc = scipy_curv_fit_func
+        self._curve_fit_func = curve_fit_func
 
     def fit_gaussian(self, proj, indcs, param0):
         """."""
         # TODO: use covariance matrix to estimate parameter errors
         # TODO: pass gaussian jacobian matrix to accelerate calculation
-        param, *ret = self._scipy_curve_fitfunc(
-            FitGaussianScipy.gaussian, indcs, proj, param0)
+        param, *ret = self._curve_fit_func(
+            self.gaussian, indcs, proj, param0)
         return param, ret
 
     def calc_fit(self, image, proj, indcs, center):
