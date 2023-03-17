@@ -8,31 +8,32 @@ import matplotlib.patches as _patches
 
 # NOTE: lnls560-linux was used in benchmarking
 #
-#   processor	    : 0
-#   vendor_id	    : GenuineIntel
-#   cpu family	    : 6
-#   model		    : 158
-#   model name	    : Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz
-#   stepping	    : 10
-#   microcode	    : 0x96
-#   cpu MHz		    : 900.024
-#   cache size	    : 12288 KB
-#   physical id	    : 0
-#   siblings	    : 12
-#   core id		    : 0
-#   cpu cores	    : 6
-#   apicid		    : 0
-#   initial apicid	: 0
-#   fpu		        : yes
-#   fpu_exception	: yes
-#   cpuid level	    : 22
-#   wp		        : yes
+#   processor       : 0
+#   vendor_id       : GenuineIntel
+#   cpu family      : 6
+#   model           : 158
+#   model name      : Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz
+#   stepping        : 10
+#   microcode       : 0x96
+#   cpu MHz         : 900.024
+#   cache size      : 12288 KB
+#   physical id     : 0
+#   siblings        : 12
+#   core id         : 0
+#   cpu cores       : 6
+#   apicid          : 0
+#   initial apicid  : 0
+#   fpu             : yes
+#   fpu_exception   : yes
+#   cpuid level     : 22
+#   wp              : yes
 
 
 class FitGaussian:
     """."""
 
     SATURATION_8BITS = 2**8-1
+    SATURATION_16BITS = 2**16-1
 
     @staticmethod
     def gaussian(indcs, sigma, mean, amplitude, offset):
@@ -41,19 +42,21 @@ class FitGaussian:
 
     @staticmethod
     def generate_gaussian_1d(
-            indcs, sigma=None, mean=0, amplitude=0,
+            indcs, sigma=_np.inf, mean=0, amplitude=0,
             offset=0, rand_amplitude=0, saturation_threshold=None):
         """Generate a gaussian curve with given distribution parameters.
 
         Args:
-            indcs (int | tuple | list | np.array) : pixel index array def
-            sigma (float) : gaussian sigma
-            mean (float) : gaussian mean
-            amplitude (float) : gaussian intensity amplitude
-            offset (float) : gaussian intensity offset
-            rand_amplitude (float) : gaussian point intensity random amplitude
-            saturation_threshold (float) :
-                intensity above which image is set to saturated
+            indcs (int | tuple | list | np.array) : Pixel index definition
+            sigma (float) : Gaussian sigma value. Defaults to numpy.inf
+            mean (float) : Gaussian mean value. Defaults to zero
+            amplitude (float) : Gaussian intensity amplitude. Defaults to zero
+            offset (float) : Gaussian intensity offset. Defaults to zero
+            rand_amplitude (float) : Gaussian point intensity random amplitude.
+                Defaults to zero
+            saturation_threshold (float) : Intensity above which image is
+                tagged saturated. Defaults to None, meaning no check is
+                performed.
 
         Output:
             data (np.array) : gaussian curve
@@ -80,8 +83,8 @@ class FitGaussian:
     @staticmethod
     def generate_gaussian_2d(
             indcs, sigma=None, mean=None,
-            amplitude=None, offset=None,
-            rand_amplitude=None, saturation_threshold=None,
+            amplitude=0, offset=0,
+            rand_amplitude=0, saturation_threshold=None,
             angle=0
             ):
         """Generate a bigaussian with given distribution parameters.
@@ -89,28 +92,33 @@ class FitGaussian:
         Args:
             indcs (tuple(2) | list(2) | np.array(2)) :
                 2-component (y and x) pixel index definition. Each component is
-                a (int | tuple | list | np.array) each pixel indices.
+                a (int | tuple | list | np.array) with pixel indice definition.
             sigma (tuple(2) | list(2) | np.array(2)) :
-                x and y sigma values (int | float) [pixel]
+                x and y gaussian sigma values (int | float). Defaults to None,
+                corresponding to [numpy.inf]*2
             mean (tuple(2) | list(2) | np.array(2)) :
-                x and y mean values [pixel]
-            amplitude (float) : bigaussian intensity amplitude
-            offset (float) : bigaussian intensity offset
-            rand_amplitude (float) : gaussian point intensity random amplitude
+                x and y mean values. Defaults to None, corresponding to
+                [0]*2
+            amplitude (float) : Bigaussian intensity amplitude,
+                Defaults to zero
+            offset (float) : Bigaussian intensity offset. Defaults to zero
+            rand_amplitude (float) : gaussian point intensity random amplitude.
+                Defaults to zero
             saturation_threshold (float) :
-                intensity above which image is set to saturated
+                Intensity above which image is set to saturated. Defaults to
+                None, in which case no saturation check if performed
 
         Output:
             data (np.array) : gaussian curve
-            indcsx (np.array) : x pixel indice array (input copy)
-            indcsy (np.array) : y pixel indice array (input copy)
+            indcsx (np.array) : x pixel index array (input copy)
+            indcsy (np.array) : y pixel index array (input copy)
         """
         # benchmark for size=(1024, 1280)
         # 35.1 ms ± 833 µs per loop
         #   (mean ± std. dev. of 7 runs, 10 loops each)
         indcsx, indcsy = indcs
-        sigmax, sigmay = sigma if sigma is not None else [None] * 2
-        meanx, meany = mean if mean is not None else [None] * 2
+        sigmax, sigmay = sigma if sigma else [None] * 2
+        meanx, meany = mean if mean else [None] * 2
 
         indcsx, sigmax, meanx, \
             amplitude, offset, rand_amplitude, saturation_threshold = \
@@ -127,8 +135,9 @@ class FitGaussian:
         y = indcsy - meany
         x = indcsx - meanx
         mx, my = _np.meshgrid(x, y)
-        mxl = _np.cos(angle) * mx - _np.sin(angle) * my
-        myl = _np.sin(angle) * mx + _np.cos(angle) * my
+        cos_a, sin_a = _np.cos(angle), _np.sin(angle)
+        mxl = cos_a * mx - sin_a * my
+        myl = sin_a * mx + cos_a * my
         data = offset + \
             amplitude * _np.exp(-0.5 * ((mxl/sigmax)**2 + (myl/sigmay)**2))
         if rand_amplitude:
@@ -146,15 +155,18 @@ class FitGaussian:
         sel = proj > 0  # fit only positive data
         vecy, vecx = proj[sel], indc[sel]
         logy = _np.log(vecy)
-        pfit = _np.polyfit(vecx, logy, 2)
-        if pfit[0] < 0:
-            sigma = _np.sqrt(-1/pfit[0]/2) if pfit[0] < 0 else 0.0
+
+        pfit = _np.polynomial.polynomial.polyfit(vecx, logy, 2)
+        if pfit[2] < 0:
+            sigma = _np.sqrt(-1/pfit[2]/2) if pfit[2] < 0 else 0.0
             mean = pfit[1] * sigma**2
-            amplitude = _np.exp(pfit[2] + (mean/sigma)**2/2)
+            amplitude = _np.exp(pfit[0] + (mean/sigma)**2/2)
             mean += mean0
             offset = offset0
         else:
-            sigma, mean, amplitude, offset = [float('nan')] * 4
+            sigma, mean, amplitude, offset = [_np.nan] * 4
+
+
         return sigma, mean, amplitude, offset
 
     @staticmethod
@@ -175,7 +187,7 @@ class FitGaussian:
             roi_gaussian_error = 100 * _np.sqrt(error)
         else:
             roi_gaussian_fit = 0 * proj
-            roi_gaussian_error = float('nan')
+            roi_gaussian_error = _np.nan
         fit = (param, roi_gaussian_fit, roi_gaussian_error)
         return fit
 
@@ -183,7 +195,7 @@ class FitGaussian:
     def _process_args(
             indcs, sigma, mean, amplitude,
             offset, rand_amplitude, saturation_threshold):
-        sigma = sigma or float('Inf')
+        sigma = sigma or _np.inf
         if isinstance(indcs, (int, float)):
             indcs = _np.arange(int(indcs))
         elif isinstance(indcs, (tuple, list)):
@@ -196,9 +208,6 @@ class FitGaussian:
             raise ValueError('Invalid indcs!')
         elif indcs.size == 2:
             indcs = _np.arange(*indcs)
-        amplitude = amplitude or 0
-        offset = offset or 0
-        rand_amplitude = rand_amplitude or 0
         res = (
             indcs, sigma, mean, amplitude,
             offset, rand_amplitude, saturation_threshold
@@ -209,14 +218,15 @@ class FitGaussian:
 class FitGaussianScipy(FitGaussian):
     """."""
 
-    def __init__(self, curve_fit_func):
+    def __init__(self):
         """."""
-        self._curve_fit_func = curve_fit_func
+        from scipy.optimize import curve_fit
+        self._curve_fit_func = curve_fit
 
     def fit_gaussian(self, proj, indcs, param0):
         """."""
         # TODO: use covariance matrix to estimate parameter errors
-        # TODO: pass gaussian jacobian matrix to accelerate calculation
+        # TODO: pass jacobian function to accelerate calculation
         param, *ret = self._curve_fit_func(
             self.gaussian, indcs, proj, param0)
         return param, ret
@@ -729,21 +739,15 @@ class Image2D_ROI(Image2D):
         res += self.imagex.__str__()
         res += '\n--- projy ---\n'
         res += self.imagey.__str__()
-        # res += f'\nroiy            : {self.roiy}'
-        # res += f'\nroix            : {self.roix}'
-        # res += f'\nroiy_center     : {self.imagey.roi_center}'
-        # res += f'\nroix_center     : {self.imagex.roi_center}'
-        # res += f'\nroiy_fwhm       : {self.imagey.roi_fwhm}'
-        # res += f'\nroix_fwhm       : {self.imagex.roi_fwhm}'
 
         return res
 
     def _update_image_roi(self, roix, roiy):
         """."""
         roix, roiy = Image2D.get_roi(self.data, roix, roiy)
-        data = Image2D.project_image(self._data, 0)
+        data = self.project_image(self._data, 0)
         self._imagey = Image1D_ROI(data=data, roi=roiy)
-        data = Image2D.project_image(self._data, 1)
+        data = self.project_image(self._data, 1)
         self._imagex = Image1D_ROI(data=data, roi=roix)
 
     @staticmethod
@@ -1016,7 +1020,7 @@ class Image1D_Fit(Image1D_ROI):
 
         axis.legend()
         axis.grid()
-        axis.set_ylabel('ROI pixel indices')
+        axis.set_ylabel('ROI pixel index')
         axis.set_ylabel('Projection Intensity')
 
     def __str__(self):
@@ -1118,8 +1122,8 @@ class Image2D_Fit(Image2D):
         images1droi = [Image1D_ROI(data=self.data[:, val]) for val in posx]
         posy = [image.roi_center for image in images1droi]
 
-        pfit = _np.polyfit(posx, posy, 1)
-        angle = - _np.arctan(pfit[0]) # sign due to vertical dir pixel increase
+        pfit = _np.polynomial.polynomial.polyfit(posx, posy, 1)
+        angle = - _np.arctan(pfit[1]) # sign due to vertical dir pixel increase
 
         return angle
 
@@ -1223,11 +1227,11 @@ class Image2D_Fit(Image2D):
         """."""
         # fit projections
         roix, roiy = Image2D.get_roi(self.data, roix, roiy)
-        data = Image2D.project_image(self._data, 0)
+        data = self.project_image(self._data, 0)
         self._fity = Image1D_Fit(
             data=data, roi=roiy, curve_fit=self._curve_fit)
         self._fity.set_saturation_flag(self.is_saturated)
-        data = Image2D.project_image(self._data, 1)
+        data = self.project_image(self._data, 1)
         self._fitx = Image1D_Fit(
             data=data, roi=roix, curve_fit=self._curve_fit)
         self._fitx.set_saturation_flag(self.is_saturated)
