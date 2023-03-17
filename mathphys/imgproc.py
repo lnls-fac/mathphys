@@ -107,6 +107,7 @@ class FitGaussian:
             saturation_threshold (float) :
                 Intensity above which image is set to saturated. Defaults to
                 None, in which case no saturation check if performed
+            angle (float) : Bigaussian tilt angles [deg]
 
         Output:
             data (np.array) : gaussian curve
@@ -135,6 +136,7 @@ class FitGaussian:
         y = indcsy - meany
         x = indcsx - meanx
         mx, my = _np.meshgrid(x, y)
+        angle *= _np.pi / 180  # [deg] -> [rad]
         cos_a, sin_a = _np.cos(angle), _np.sin(angle)
         mxl = cos_a * mx - sin_a * my
         myl = sin_a * mx + cos_a * my
@@ -218,17 +220,47 @@ class FitGaussian:
 class FitGaussianScipy(FitGaussian):
     """."""
 
-    def __init__(self):
+    def __init__(self, use_jacobian=True):
         """."""
         from scipy.optimize import curve_fit
+        self._use_jacobian = use_jacobian
         self._curve_fit_func = curve_fit
+
+    @property
+    def use_jacobian(self):
+        """."""
+        return self._use_jacobian
+
+    @use_jacobian.setter
+    def use_jacobian(self, value):
+        """."""
+        self._use_jacobian = value
+
+    def jac_gaussian(self, indcs, *params):
+        """."""
+        sigma, mean, amplitude, offset = params
+        vardx = indcs - mean
+        varf = - 0.5 * (vardx/sigma)**2
+        expf = _np.exp(varf)
+        dvarf_dsigma = varf * (-2 / sigma)
+        dvarf_dmean = vardx / sigma**2
+
+        dI_dsigma = amplitude * expf * dvarf_dsigma
+        dI_dmean = amplitude * expf * dvarf_dmean
+        dI_damplitude = expf
+        dI_doffset = _np.ones(indcs.size)
+
+        jac = _np.stack((
+            dI_dsigma, dI_dmean, dI_damplitude, dI_doffset), axis=1)
+
+        return jac
 
     def fit_gaussian(self, proj, indcs, param0):
         """."""
         # TODO: use covariance matrix to estimate parameter errors
-        # TODO: pass jacobian function to accelerate calculation
+        jac = self.jac_gaussian if self.use_jacobian else None
         param, *ret = self._curve_fit_func(
-            self.gaussian, indcs, proj, param0)
+            self.gaussian, indcs, proj, param0, jac=jac)
         return param, ret
 
     def calc_fit(self, image, proj, indcs, center):
@@ -752,7 +784,8 @@ class Image2D_ROI(Image2D):
 
     @staticmethod
     def imshow_images(
-            data, imagex, imagey, roix, roiy, fig=None, axis=None,
+            data, imagex, imagey, roix, roiy, angle=0,
+            fig=None, axis=None,
             cropx=None, cropy=None,
             color_ellip=None, color_roi=None):
         """."""
@@ -778,7 +811,7 @@ class Image2D_ROI(Image2D):
             ellipse = _patches.Ellipse(
                 xy=(imagex.roi_center - x0, imagey.roi_center - y0),
                 width=imagex.roi_fwhm, height=imagey.roi_fwhm,
-                angle=0, linewidth=1,
+                angle=-angle, linewidth=1,
                 edgecolor=color_ellip, fill='false', facecolor='none')
             axis.add_patch(ellipse)
 
@@ -1103,7 +1136,7 @@ class Image2D_Fit(Image2D):
 
     @property
     def angle(self):
-        """."""
+        """Image tilt angles [deg]."""
         return self._angle
 
     def update_roi_with_fwhm(self, fwhmx_factor=2, fwhmy_factor=2):
@@ -1115,6 +1148,7 @@ class Image2D_Fit(Image2D):
         """."""
         # generate posx grid
         cx, sx = self.fitx.roi_mean, self.fitx.roi_sigma
+
         posx = _np.linspace(cx - sigma_factor*sx, cx + sigma_factor*sx, nrpts)
         posx = list(set([int(val) for val in posx]))
         posx = _np.sort(posx)
@@ -1124,6 +1158,7 @@ class Image2D_Fit(Image2D):
 
         pfit = _np.polynomial.polynomial.polyfit(posx, posy, 1)
         angle = - _np.arctan(pfit[1]) # sign due to vertical dir pixel increase
+        angle *= 180 / _np.pi
 
         return angle
 
@@ -1168,6 +1203,7 @@ class Image2D_Fit(Image2D):
         """."""
         return Image2D_ROI.imshow_images(
             self.data, self.fitx, self.fity, self.fitx.roi, self.fity.roi,
+            angle=self.angle,
             fig=fig, axis=axis,
             cropx = cropx, cropy = cropy,
             color_ellip=color_ellip, color_roi=color_roi)
@@ -1220,6 +1256,8 @@ class Image2D_Fit(Image2D):
         res += f'\nroi_mean        : {self.fity.roi_mean}'
         res += f'\nroi_sigma       : {self.fity.roi_sigma}'
         res += f'\nroi_fit_err     : {self.fity.roi_fit_error} %'
+        res += '\n--- bigauss ---'
+        res += f'\nangle           : {self.angle} deg.'
 
         return res
 
@@ -1237,4 +1275,5 @@ class Image2D_Fit(Image2D):
         self._fitx.set_saturation_flag(self.is_saturated)
 
         # fit angle
-        self._angle = self.calc_angle_with_roi(sigma_factor=3, nrpts=5)
+        angle = self.calc_angle_with_roi(sigma_factor=3, nrpts=5)
+        self._angle = 0 if angle in (_np.nan, _np.inf) else angle
