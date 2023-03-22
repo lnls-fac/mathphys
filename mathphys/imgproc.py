@@ -38,11 +38,14 @@ class FitGaussian:
     @staticmethod
     def gaussian(indcs, sigma, mean, amplitude, offset):
         """Gaussian curve from distribution parameters."""
+        # benchmark for size=1280
+        # 25.4 µs ± 378 ns per loop
+        # (mean ± std. dev. of 7 runs, 10000 loops each)
         return offset + amplitude * _np.exp(-0.5*((indcs - mean)/sigma)**2)
 
-    @staticmethod
+    @classmethod
     def generate_gaussian_1d(
-            indcs, sigma=_np.inf, mean=0, amplitude=0,
+            cls, indcs, sigma=_np.inf, mean=0, amplitude=0,
             offset=0, rand_amplitude=0, saturation_threshold=None):
         """Generate a gaussian curve with given distribution parameters.
 
@@ -68,11 +71,11 @@ class FitGaussian:
 
         indcs, sigma, mean, amplitude, \
             offset, rand_amplitude, saturation_threshold = \
-            FitGaussian._process_args(
+            cls._process_args(
                 indcs, sigma, mean, amplitude,
                 offset, rand_amplitude, saturation_threshold)
 
-        data = FitGaussian.gaussian(indcs, sigma, mean, amplitude, offset)
+        data = cls.gaussian(indcs, sigma, mean, amplitude, offset)
 
         if rand_amplitude is not None:
             data += (_np.random.rand(*data.shape) - 0.5) * rand_amplitude
@@ -80,9 +83,9 @@ class FitGaussian:
             data[data > saturation_threshold] = saturation_threshold
         return data, indcs
 
-    @staticmethod
+    @classmethod
     def generate_gaussian_2d(
-            indcs, sigma=None, mean=None,
+            cls, indcs, sigma=None, mean=None,
             amplitude=0, offset=0,
             rand_amplitude=0, saturation_threshold=None,
             angle=0
@@ -123,13 +126,13 @@ class FitGaussian:
 
         indcsx, sigmax, meanx, \
             amplitude, offset, rand_amplitude, saturation_threshold = \
-            FitGaussian._process_args(
+            cls._process_args(
                 indcsx, sigmax, meanx,
                 amplitude, offset, rand_amplitude, saturation_threshold)
 
         indcsy, sigmay, meany, \
             amplitude, offset, rand_amplitude, saturation_threshold = \
-            FitGaussian._process_args(
+            cls._process_args(
                 indcsy, sigmay, meany,
                 amplitude, offset, rand_amplitude, saturation_threshold)
 
@@ -171,8 +174,8 @@ class FitGaussian:
 
         return sigma, mean, amplitude, offset
 
-    @staticmethod
-    def calc_fit(image, proj, indcs, center):
+    @classmethod
+    def calc_fit(cls, image, proj, indcs, center):
         """."""
         # get roi gaussian fit
         sigma0 = None
@@ -180,9 +183,9 @@ class FitGaussian:
         amplitude0 = None
         offset0 = image.intensity_min
         param0 = (sigma0, mean0, amplitude0, offset0)
-        param = FitGaussian.fit_gaussian(proj, indcs, param0)
+        param = cls.fit_gaussian(proj, indcs, param0)
         if param[0] > 0:
-            gfit, *_ = FitGaussian.generate_gaussian_1d(indcs, *param)
+            gfit, *_ = cls.generate_gaussian_1d(indcs, *param)
             roi_gaussian_fit = gfit
             error = _np.sum((gfit - proj)**2)
             error /= _np.sum(proj**2)
@@ -475,6 +478,9 @@ class Image2D:
     @property
     def intensity_sum(self):
         """Return image sum intensity value."""
+        # benchmark for sizes=(1024, 1280):
+        # 403 µs ± 17.7 µs per loop
+        # (mean ± std. dev. of 7 runs, 1000 loops each)
         return _np.sum(self.data)
 
     @property
@@ -675,13 +681,13 @@ class Image1D_ROI(Image1D):
     def _trim_image(image, roi):
         return image[slice(*roi)]
 
-    @staticmethod
-    def calc_roi_with_fwhm(image, fwhm_factor):
+    @classmethod
+    def calc_roi_with_fwhm(cls, image, fwhm_factor):
         """."""
         roi1 = int(image.roi_center - fwhm_factor * (image.roi_fwhm/2))
         roi2 = int(image.roi_center + fwhm_factor * (image.roi_fwhm/2))
         roi = [roi1, roi2]
-        return Image1D.get_roi(image.data, roi)
+        return cls.get_roi(image.data, roi)
 
 
 class Image2D_ROI(Image2D):
@@ -692,7 +698,6 @@ class Image2D_ROI(Image2D):
         # benchmark for sizes=(1024, 1280)
         #   1.71 ms ± 203 µs per loop
         #   (mean ± std. dev. of 7 runs, 1000 loops each)
-
         self._imagey = None
         self._imagex = None
         super().__init__(data=data, *args, **kwargs)
@@ -782,23 +787,23 @@ class Image2D_ROI(Image2D):
         data = self.project_image(self._data, 1)
         self._imagex = Image1D_ROI(data=data, roi=roix)
 
-    @staticmethod
+    @classmethod
     def imshow_images(
-            data, imagex, imagey, roix, roiy, angle=0,
+            cls, data, imagex, imagey, roix, roiy, angle=0,
             fig=None, axis=None,
             cropx=None, cropy=None,
             color_ellip=None, color_roi=None):
         """."""
         color_ellip = None if color_ellip == 'no' else color_ellip or 'tab:red'
         color_roi = None if color_roi == 'no' else color_roi or 'yellow'
-        cropx, cropy = Image2D.get_roi(data, cropx, cropy)
+        cropx, cropy = cls.get_roi(data, cropx, cropy)
         x0, y0 = cropx[0], cropy[0]
 
         if None in (fig, axis):
             fig, axis = _plt.subplots()
 
         # plot image
-        data = Image2D_ROI._trim_image(data, cropx, cropy)
+        data = cls._trim_image(data, cropx, cropy)
         axis.imshow(data, extent=None)
 
         if color_ellip:
@@ -972,18 +977,17 @@ class Image2D_CMom(Image2D_ROI):
 class Image1D_Fit(Image1D_ROI):
     """1D Image Fit."""
 
-    def __init__(self, *args, curve_fit=None, **kwargs):
+    def __init__(self, *args, fitgauss=None, **kwargs):
         """."""
         # benchmark for size=1280
         #   586 µs ± 1.56 µs per loop
         #   (mean ± std. dev. of 7 runs, 1000 loops each)
-
         self._roi_mean = None
         self._roi_sigma = None
         self._roi_amp = None
         self._roi_fit = None
         self._roi_fit_error = None
-        self._curve_fit = curve_fit or FitGaussian
+        self._fitgauss = fitgauss or FitGaussian
         super().__init__(*args, **kwargs)
         self._update_image_roi(*args, **kwargs)
 
@@ -1072,7 +1076,7 @@ class Image1D_Fit(Image1D_ROI):
 
         # fit roi
         param, roi_fit, roi_error = \
-            self._curve_fit.calc_fit(
+            self._fitgauss.calc_fit(
                 self, self.roi_proj, self.roi_indcs, self.roi_center)
         self._roi_sigma, self._roi_mean, self._roi_amp, _ = param
         self._roi_fit, self._roi_fit_error = roi_fit, roi_error
@@ -1081,16 +1085,15 @@ class Image1D_Fit(Image1D_ROI):
 class Image2D_Fit(Image2D):
     """2D Image Fit."""
 
-    def __init__(self, roix=None, roiy=None, curve_fit=None, *args, **kwargs):
+    def __init__(self, roix=None, roiy=None, fitgauss=None, *args, **kwargs):
         """."""
         # benchmark for sizes=(1024, 1280)
         #   2.7 ms ± 23.2 µs per loop
         #   (mean ± std. dev. of 7 runs, 100 loops each)
-
         self._fitx = None
         self._fity = None
         self._angle = 0
-        self._curve_fit = curve_fit or FitGaussian
+        self._fitgauss = fitgauss or FitGaussian
         super().__init__(*args, **kwargs)
         self._update_image_fit(roix=roix, roiy=roiy)
 
@@ -1267,11 +1270,11 @@ class Image2D_Fit(Image2D):
         roix, roiy = Image2D.get_roi(self.data, roix, roiy)
         data = self.project_image(self._data, 0)
         self._fity = Image1D_Fit(
-            data=data, roi=roiy, curve_fit=self._curve_fit)
+            data=data, roi=roiy, fitgauss=self._fitgauss)
         self._fity.set_saturation_flag(self.is_saturated)
         data = self.project_image(self._data, 1)
         self._fitx = Image1D_Fit(
-            data=data, roi=roix, curve_fit=self._curve_fit)
+            data=data, roi=roix, fitgauss=self._fitgauss)
         self._fitx.set_saturation_flag(self.is_saturated)
 
         # fit angle
