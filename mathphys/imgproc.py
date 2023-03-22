@@ -170,8 +170,6 @@ class FitGaussian:
             offset = offset0
         else:
             sigma, mean, amplitude, offset = [_np.nan] * 4
-
-
         return sigma, mean, amplitude, offset
 
     @classmethod
@@ -605,7 +603,24 @@ class Image1D_ROI(Image1D):
     def imshow(
             self, fig=None, axis=None, crop = None,
             color_ellip=None, color_roi=None):
-        """."""
+        """Show image.
+
+        Args:
+            fig (None | matplotlib.figure) : Handle to figure.
+                Defaults to None (create a new fig, axis)
+            axis (None | matplotlib.axis) : Hande to axis.
+                Defaults to None (create a new fig, axis)
+            crop (tuple | list | numpy.array) : Two-element array with
+                image pixel bounds to crop. Defaults to None and the entire
+                image is ploted.
+            color_ellip (str | RGB color | None): color to use for image
+                ellipse plot. Defaults to None, in case the color 'tab:red'
+                is used. If it is set to string 'no' no ellipse is ploted.
+            color_roi (str | RGB color | None): color to use for image
+                roi rectangle plot. Defaults to None, in case the RGB color
+                [0.5, 0.5, 0] is used. If it is set to string 'no' no
+                roi is ploted.
+        """
         color_ellip = None if color_ellip == 'no' else color_ellip or 'tab:red'
         color_roi = None if color_roi == 'no' else color_roi or [0.5, 0.5, 0]
         crop = crop or [0, self.data.size]
@@ -752,7 +767,27 @@ class Image2D_ROI(Image2D):
             self, fig=None, axis=None,
             cropx = None, cropy = None,
             color_ellip=None, color_roi=None):
-        """."""
+        """Show image.
+
+        Args:
+            fig (None | matplotlib.figure) : Handle to figure.
+                Defaults to None (create a new fig, axis)
+            axis (None | matplotlib.axis) : Hande to axis.
+                Defaults to None (create a new fig, axis)
+            cropx (tuple | list | numpy.array) : Two-element array with
+                image pixel bounds to crop in X. Defaults to None and the
+                entire image is ploted.
+            cropy (tuple | list | numpy.array) : Two-element array with
+                image pixel bounds to crop in Y. Defaults to None and the
+                entire image is ploted.
+            color_ellip (str | RGB color | None): color to use for image
+                ellipse plot. Defaults to None, in case the color 'tab:red'
+                is used. If it is set to string 'no' no ellipse is ploted.
+            color_roi (str | RGB color | None): color to use for image
+                roi rectangle plot. Defaults to None, in case the RGB color
+                [0.5, 0.5, 0] is used. If it is set to string 'no' no
+                roi is ploted.
+        """
 
         return Image2D_ROI.imshow_images(
             self.data, self.imagex, self.imagey, self.roix, self.roiy,
@@ -793,7 +828,35 @@ class Image2D_ROI(Image2D):
             fig=None, axis=None,
             cropx=None, cropy=None,
             color_ellip=None, color_roi=None):
-        """."""
+        """Show image.
+
+        Args:
+            data (numpy.array | list of list) : 2-index image data
+            imagex (Image1D_ROI): image projection in X
+            imagey (Image1D_ROI): image projection in Y
+            roix (tuple | list | numpy.array) : Two-element array with
+                image roi in X.
+            roiy (tuple | list | numpy.array) : Two-element array with
+                image roi in Y.
+            angle (float) : Rotation angle of ellipse to be ploted. Defaults
+                to 0. Unit: degree.
+            fig (None | matplotlib.figure) : Handle to figure.
+                Defaults to None (create a new fig, axis)
+            axis (None | matplotlib.axis) : Hande to axis.
+                Defaults to None (create a new fig, axis)
+            cropx (tuple | list | numpy.array) : Two-element array with
+                image pixel bounds to crop in X. Defaults to None and the
+                entire image is ploted.
+            cropy (tuple | list | numpy.array) : Two-element array with
+                image pixel bounds to crop in Y. Defaults to None and the
+                entire image is ploted.
+            color_ellip (str | RGB color | None): color to use for image
+                ellipse plot. Defaults to None, in case the color 'tab:red'
+                is used. If it is set to string 'no' no ellipse is ploted.
+            color_roi (str | RGB color | None): color to use for image
+                roi rectangle plot. Defaults to None, in case the color
+                'yellow' is used. If it is set to string 'no' no
+                roi is ploted."""
         color_ellip = None if color_ellip == 'no' else color_ellip or 'tab:red'
         color_roi = None if color_roi == 'no' else color_roi or 'yellow'
         cropx, cropy = cls.get_roi(data, cropx, cropy)
@@ -1175,8 +1238,6 @@ class Image2D_Fit(Image2D):
         #
         # sigmax² = C² sigma1² + S² sigma2²
         # sigmay² = S² sigma1² + C² sigma2²
-        #
-        # TODO: not working...
         sigmax = self.fitx.roi_sigma
         sigmay = self.fity.roi_sigma
         sigma_max = max(sigmax, sigmay)
@@ -1186,8 +1247,8 @@ class Image2D_Fit(Image2D):
         if abs(det) < 1e-6:
             return _np.nan, _np.nan
 
-        sigma1sqr = func**2 * sigmax**2 - funs**2 * sigmay**2
-        sigma2sqr = -funs**2 * sigmax**2 + func**2 * sigmay**2
+        sigma1sqr = 1/det * (func**2 * sigmax**2 - funs**2 * sigmay**2)
+        sigma2sqr = 1/det * (-funs**2 * sigmax**2 + func**2 * sigmay**2)
 
         if sigma1sqr > 0:
             sigma1 = min(_np.sqrt(sigma1sqr), sigma_max)
