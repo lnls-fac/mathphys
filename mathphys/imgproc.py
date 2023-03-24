@@ -1210,22 +1210,42 @@ class Image2D_Fit(Image2D):
         self.fitx.update_roi_with_fwhm(fwhm_factor=fwhmx_factor)
         self.fity.update_roi_with_fwhm(fwhm_factor=fwhmy_factor)
 
-    def calc_angle_with_roi(self, sigma_factor, nrpts):
+    # def calc_angle_with_roi(self, sigma_factor, nrpts):
+    #     """."""
+    #     # generate posx grid
+    #     cx, sx = self.fitx.roi_mean, self.fitx.roi_sigma
+
+    #     posx = _np.linspace(cx - sigma_factor*sx, cx + sigma_factor*sx, nrpts)
+    #     posx = list(set([int(val) for val in posx]))
+    #     posx = _np.sort(posx)
+
+    #     images1droi = [Image1D_ROI(data=self.data[:, val]) for val in posx]
+    #     posy = [image.roi_center for image in images1droi]
+
+    #     pfit = _np.polynomial.polynomial.polyfit(posx, posy, 1)
+    #     angle = - _np.arctan(pfit[1]) # sign due to vertical dir pixel increase
+    #     angle *= 180 / _np.pi
+
+    #     return angle
+
+    def calc_angle_with_roi(self):
         """."""
-        # generate posx grid
-        cx, sx = self.fitx.roi_mean, self.fitx.roi_sigma
-
-        posx = _np.linspace(cx - sigma_factor*sx, cx + sigma_factor*sx, nrpts)
-        posx = list(set([int(val) for val in posx]))
-        posx = _np.sort(posx)
-
-        images1droi = [Image1D_ROI(data=self.data[:, val]) for val in posx]
-        posy = [image.roi_center for image in images1droi]
-
-        pfit = _np.polynomial.polynomial.polyfit(posx, posy, 1)
-        angle = - _np.arctan(pfit[1]) # sign due to vertical dir pixel increase
-        angle *= 180 / _np.pi
-
+        roix, roiy = self.fity.roi, self.fitx.roi
+        indcsx, indcsy = self.fity.roi_indcs, self.fitx.roi_indcs
+        mx, my = _np.meshgrid(indcsx, indcsy)
+        data = self.data[slice(*roiy), slice(*roix)]
+        data = data * data
+        data = data * data
+        a11 = _np.sum(mx**2 * data)
+        a12 = _np.sum(mx * data)
+        a22 = _np.sum(data)
+        b1 = _np.sum(mx * my * data)
+        b2 = _np.sum(my * data)
+        a = _np.array([[a11, a12], [a12, a22]])
+        b = _np.array([b1, b2])
+        v = _np.linalg.solve(a, b)
+        angle = _np.arctan(v[0]) * 180 / _np.pi
+        angle *= -1  # sign due to vertical dir pixel inc direction
         return angle
 
     def calc_mode_sigmas(self):
@@ -1339,5 +1359,4 @@ class Image2D_Fit(Image2D):
         self._fitx.set_saturation_flag(self.is_saturated)
 
         # fit angle
-        angle = self.calc_angle_with_roi(sigma_factor=3, nrpts=5)
-        self._angle = 0 if angle in (_np.nan, _np.inf) else angle
+        self._angle = self.calc_angle_with_roi()
