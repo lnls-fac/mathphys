@@ -1210,26 +1210,13 @@ class Image2D_Fit(Image2D):
         self.fitx.update_roi_with_fwhm(fwhm_factor=fwhmx_factor)
         self.fity.update_roi_with_fwhm(fwhm_factor=fwhmy_factor)
 
-    # def calc_angle_with_roi(self, sigma_factor, nrpts):
-    #     """."""
-    #     # generate posx grid
-    #     cx, sx = self.fitx.roi_mean, self.fitx.roi_sigma
-
-    #     posx = _np.linspace(cx - sigma_factor*sx, cx + sigma_factor*sx, nrpts)
-    #     posx = list(set([int(val) for val in posx]))
-    #     posx = _np.sort(posx)
-
-    #     images1droi = [Image1D_ROI(data=self.data[:, val]) for val in posx]
-    #     posy = [image.roi_center for image in images1droi]
-
-    #     pfit = _np.polynomial.polynomial.polyfit(posx, posy, 1)
-    #     angle = - _np.arctan(pfit[1]) # sign due to vertical dir pixel increase
-    #     angle *= 180 / _np.pi
-
-    #     return angle
-
     def calc_angle_with_roi(self):
-        """."""
+        """Calculate image tilt angle within ROI.
+
+        A linear y = ax + b is performed over the image and the angle is
+        taken from the arctan of the angular coefficient. Each image point
+        is weighted by the fourth power of the image intensity.
+        """
         roix, roiy = self.fitx.roi, self.fity.roi
         indcsx, indcsy = self.fitx.roi_indcs, self.fity.roi_indcs
         mx, my = _np.meshgrid(indcsx, indcsy)
@@ -1245,7 +1232,7 @@ class Image2D_Fit(Image2D):
         b = _np.array([b1, b2])
         v = _np.linalg.solve(a, b)
         angle = _np.arctan(v[0]) * 180 / _np.pi
-        angle *= -1  # sign due to vertical dir pixel inc direction
+        angle *= -1  # sign due to the directions of vertical pixel increase
         return angle
 
     def calc_mode_sigmas(self):
