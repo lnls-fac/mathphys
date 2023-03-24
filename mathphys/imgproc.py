@@ -1230,8 +1230,8 @@ class Image2D_Fit(Image2D):
 
     def calc_angle_with_roi(self):
         """."""
-        roix, roiy = self.fity.roi, self.fitx.roi
-        indcsx, indcsy = self.fity.roi_indcs, self.fitx.roi_indcs
+        roix, roiy = self.fitx.roi, self.fity.roi
+        indcsx, indcsy = self.fitx.roi_indcs, self.fity.roi_indcs
         mx, my = _np.meshgrid(indcsx, indcsy)
         data = self.data[slice(*roiy), slice(*roix)]
         data = data * data
