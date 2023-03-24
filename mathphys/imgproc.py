@@ -1223,15 +1223,17 @@ class Image2D_Fit(Image2D):
         data = self.data[slice(*roiy), slice(*roix)]
         data = data * data
         data = data * data
-        a11 = _np.sum(mx**2 * data)
-        a12 = _np.sum(mx * data)
+        mxd = mx * data
+        myd = my * data
+        a11 = _np.sum(mxd * mx)
+        a12 = _np.sum(mxd)
         a22 = _np.sum(data)
-        b1 = _np.sum(mx * my * data)
-        b2 = _np.sum(my * data)
-        a = _np.array([[a11, a12], [a12, a22]])
-        b = _np.array([b1, b2])
-        v = _np.linalg.solve(a, b)
-        angle = _np.arctan(v[0]) * 180 / _np.pi
+        b1 = _np.sum(mxd * my)
+        b2 = _np.sum(myd)
+        det = a11 * a22 - a12**2
+        inv = _np.array([[a22, -a12], [-a12, a11]]) / det
+        v0 = inv[0, 0]*b1 + inv[0, 1]*b2
+        angle = _np.arctan(v0) * 180 / _np.pi
         angle *= -1  # sign due to the directions of vertical pixel increase
         return angle
 
