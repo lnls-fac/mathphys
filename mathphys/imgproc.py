@@ -97,11 +97,11 @@ class FitGaussian:
                 2-component (y and x) pixel index definition. Each component is
                 a (int | tuple | list | np.array) with pixel indice definition.
             sigma (tuple(2) | list(2) | np.array(2)) :
-                x and y gaussian sigma values (int | float). Defaults to None,
-                corresponding to [numpy.inf]*2
+                mode-1 and mode-2 gaussian sigma values (int | float).
+                Defaults to None, corresponding to [numpy.inf]*2
             mean (tuple(2) | list(2) | np.array(2)) :
-                x and y mean values. Defaults to None, corresponding to
-                [0]*2
+                mode-1 and mode-2 mean values. Defaults to None, corresponding
+                to [0]*2
             amplitude (float) : Bigaussian intensity amplitude,
                 Defaults to zero
             offset (float) : Bigaussian intensity offset. Defaults to zero
@@ -114,37 +114,37 @@ class FitGaussian:
 
         Output:
             data (np.array) : gaussian curve
-            indcsx (np.array) : x pixel index array (input copy)
-            indcsy (np.array) : y pixel index array (input copy)
+            indcsx (np.array) : x pixel index array (input ref)
+            indcsy (np.array) : y pixel index array (input ref)
         """
         # benchmark for size=(1024, 1280)
         # 35.1 ms ± 833 µs per loop
         #   (mean ± std. dev. of 7 runs, 10 loops each)
         indcsx, indcsy = indcs
-        sigmax, sigmay = sigma if sigma else [None] * 2
-        meanx, meany = mean if mean else [None] * 2
+        sigma1, sigma2 = sigma if sigma else [None] * 2
+        mean1, mean2 = mean if mean else [None] * 2
 
-        indcsx, sigmax, meanx, \
+        indcsx, sigma1, mean1, \
             amplitude, offset, rand_amplitude, saturation_threshold = \
             cls._process_args(
-                indcsx, sigmax, meanx,
+                indcsx, sigma1, mean1,
                 amplitude, offset, rand_amplitude, saturation_threshold)
 
-        indcsy, sigmay, meany, \
+        indcsy, sigma2, mean2, \
             amplitude, offset, rand_amplitude, saturation_threshold = \
             cls._process_args(
-                indcsy, sigmay, meany,
+                indcsy, sigma2, mean2,
                 amplitude, offset, rand_amplitude, saturation_threshold)
 
-        y = indcsy - meany
-        x = indcsx - meanx
+        y = indcsy - mean2
+        x = indcsx - mean1
         mx, my = _np.meshgrid(x, y)
         angle *= _np.pi / 180  # [deg] -> [rad]
         cos_a, sin_a = _np.cos(angle), _np.sin(angle)
-        mxl = cos_a * mx - sin_a * my
-        myl = sin_a * mx + cos_a * my
+        m1 = cos_a * mx - sin_a * my
+        m2 = sin_a * mx + cos_a * my
         data = offset + \
-            amplitude * _np.exp(-0.5 * ((mxl/sigmax)**2 + (myl/sigmay)**2))
+            amplitude * _np.exp(-0.5 * ((m1/sigma1)**2 + (m2/sigma2)**2))
         if rand_amplitude:
             data += (_np.random.rand(*data.shape) - 0.5) * rand_amplitude
         if saturation_threshold is not None:
@@ -350,19 +350,19 @@ class Image1D:
         """Check if image is saturated."""
         return self._is_saturated
 
-    def imshow(self, fig=None, axis=None, crop=None):
+    def imshow(self, fig=None, axes=None, crop=None):
         """."""
         crop = crop or [0, self.data.size]
 
-        if None in (fig, axis):
-            fig, axis = _plt.subplots()
+        if None in (fig, axes):
+            fig, axes = _plt.subplots()
 
         data = self.data[slice(*crop)]
-        axis.plot(data)
-        axis.set_xlabel('pixel indices')
-        axis.set_ylabel('Projection intensity')
+        axes.plot(data)
+        axes.set_xlabel('pixel indices')
+        axes.set_ylabel('Projection intensity')
 
-        return fig, axis
+        return fig, axes
 
     def generate_gaussian_1d(self, indcs=None, *args, **kwargs):
         """Generate a gaussian with given distribution parameters."""
@@ -486,17 +486,17 @@ class Image2D:
         """Check if image is saturated."""
         return self._is_saturated
 
-    def imshow(self, fig=None, axis=None, cropx=None, cropy=None):
+    def imshow(self, fig=None, axes=None, cropx=None, cropy=None):
         """."""
         cropx, cropy = Image2D.get_roi(self.data, cropx, cropy)
 
-        if None in (fig, axis):
-            fig, axis = _plt.subplots()
+        if None in (fig, axes):
+            fig, axes = _plt.subplots()
 
         data = self.data[slice(*cropy), slice(*cropx)]
-        axis.imshow(data)
+        axes.imshow(data)
 
-        return fig, axis
+        return fig, axes
 
     def generate_gaussian_2d(self, indcsx=None, indcsy=None, *args, **kwargs):
         """Generate a bigaussian with distribution parameters."""
@@ -601,20 +601,20 @@ class Image1D_ROI(Image1D):
         self.roi = roi  # triggers recalc of center, fwhm
 
     def imshow(
-            self, fig=None, axis=None, crop = None,
+            self, fig=None, axes=None, crop = None,
             color_ellip=None, color_roi=None):
         """Show image.
 
         Args:
             fig (None | matplotlib.figure) : Handle to figure.
-                Defaults to None (create a new fig, axis)
-            axis (None | matplotlib.axis) : Hande to axis.
-                Defaults to None (create a new fig, axis)
+                Defaults to None (create a new fig, axes)
+            axes (None | matplotlib.axes) : Hande to axes.
+                Defaults to None (create a new fig, axes)
             crop (tuple | list | numpy.array) : Two-element array with
                 image pixel bounds to crop. Defaults to None and the entire
                 image is ploted.
             color_ellip (str | RGB color | None): color to use for image
-                ellipse plot. Defaults to None, in case the color 'tab:red'
+                ellipse plot. Defaults to None, in which case the color 'tab:red'
                 is used. If it is set to string 'no' no ellipse is ploted.
             color_roi (str | RGB color | None): color to use for image
                 roi rectangle plot. Defaults to None, in case the RGB color
@@ -625,29 +625,29 @@ class Image1D_ROI(Image1D):
         color_roi = None if color_roi == 'no' else color_roi or [0.5, 0.5, 0]
         crop = crop or [0, self.data.size]
 
-        if None in (fig, axis):
-            fig, axis = _plt.subplots()
+        if None in (fig, axes):
+            fig, axes = _plt.subplots()
 
         # plot image
         data = Image1D_ROI._trim_image(self.data, crop)
-        axis.plot(data)
+        axes.plot(data)
 
         if color_ellip:
             centerx = self.roi_center - crop[0]
             # plot center
-            axis.axvline(x=centerx, color=color_ellip)
-            axis.axvline(x=centerx + self.roi_fwhm/2, ls='--',
+            axes.axvline(x=centerx, color=color_ellip)
+            axes.axvline(x=centerx + self.roi_fwhm/2, ls='--',
                 color=color_ellip)
-            axis.axvline(x=centerx - self.roi_fwhm/2, ls='--',
+            axes.axvline(x=centerx - self.roi_fwhm/2, ls='--',
                 color=color_ellip)
 
         if color_roi:
             # plot roi
             roi1, roi2 = self.roi
-            axis.axvline(x=roi1, color=color_roi)
-            axis.axvline(x=roi2, color=color_roi)
+            axes.axvline(x=roi1, color=color_roi)
+            axes.axvline(x=roi2, color=color_roi)
 
-        return fig, axis
+        return fig, axes
 
     def create_trimmed(self):
         """Create a new image trimmed to roi."""
@@ -764,16 +764,16 @@ class Image2D_ROI(Image2D):
         self.imagey.update_roi_with_fwhm(fwhm_factor=fwhmy_factor)
 
     def imshow(
-            self, fig=None, axis=None,
+            self, fig=None, axes=None,
             cropx = None, cropy = None,
             color_ellip=None, color_roi=None):
         """Show image.
 
         Args:
             fig (None | matplotlib.figure) : Handle to figure.
-                Defaults to None (create a new fig, axis)
-            axis (None | matplotlib.axis) : Hande to axis.
-                Defaults to None (create a new fig, axis)
+                Defaults to None (create a new fig, axes)
+            axes (None | matplotlib.axes) : Hande to axes.
+                Defaults to None (create a new fig, axes)
             cropx (tuple | list | numpy.array) : Two-element array with
                 image pixel bounds to crop in X. Defaults to None and the
                 entire image is ploted.
@@ -781,7 +781,7 @@ class Image2D_ROI(Image2D):
                 image pixel bounds to crop in Y. Defaults to None and the
                 entire image is ploted.
             color_ellip (str | RGB color | None): color to use for image
-                ellipse plot. Defaults to None, in case the color 'tab:red'
+                ellipse plot. Defaults to None, in which case the color 'tab:red'
                 is used. If it is set to string 'no' no ellipse is ploted.
             color_roi (str | RGB color | None): color to use for image
                 roi rectangle plot. Defaults to None, in case the RGB color
@@ -791,7 +791,7 @@ class Image2D_ROI(Image2D):
 
         return Image2D_ROI.imshow_images(
             self.data, self.imagex, self.imagey, self.roix, self.roiy,
-            fig=fig, axis=axis,
+            fig=fig, axes=axes,
             cropx = cropx, cropy = cropy,
             color_ellip=color_ellip, color_roi=color_roi)
 
@@ -825,9 +825,9 @@ class Image2D_ROI(Image2D):
     @classmethod
     def imshow_images(
             cls, data, imagex, imagey, roix, roiy, angle=0,
-            fig=None, axis=None,
+            fig=None, axes=None,
             cropx=None, cropy=None,
-            color_ellip=None, color_roi=None):
+            color_ellip=None, color_roi=None, color_axes=None):
         """Show image.
 
         Args:
@@ -841,9 +841,9 @@ class Image2D_ROI(Image2D):
             angle (float) : Rotation angle of ellipse to be ploted. Defaults
                 to 0. Unit: degree.
             fig (None | matplotlib.figure) : Handle to figure.
-                Defaults to None (create a new fig, axis)
-            axis (None | matplotlib.axis) : Hande to axis.
-                Defaults to None (create a new fig, axis)
+                Defaults to None (create a new fig, axes)
+            axes (None | matplotlib.axes) : Hande to axes.
+                Defaults to None (create a new fig, axes)
             cropx (tuple | list | numpy.array) : Two-element array with
                 image pixel bounds to crop in X. Defaults to None and the
                 entire image is ploted.
@@ -851,37 +851,51 @@ class Image2D_ROI(Image2D):
                 image pixel bounds to crop in Y. Defaults to None and the
                 entire image is ploted.
             color_ellip (str | RGB color | None): color to use for image
-                ellipse plot. Defaults to None, in case the color 'tab:red'
-                is used. If it is set to string 'no' no ellipse is ploted.
+                ellipse plot. Defaults to None, in which case the color
+                'tab:red' is used. If it is set to string 'no' no ellipse
+                 is ploted.
             color_roi (str | RGB color | None): color to use for image
-                roi rectangle plot. Defaults to None, in case the color
+                roi rectangle plot. Defaults to None, in which case the color
                 'yellow' is used. If it is set to string 'no' no
-                roi is ploted."""
+                roi is ploted.
+            color_axes (str | RGB color | None): color to use for image
+                principal axes. Defaults to None, in which case the color
+                'blue' is used. If it is set to string 'no' no
+                axes are ploted."""
         color_ellip = None if color_ellip == 'no' else color_ellip or 'tab:red'
         color_roi = None if color_roi == 'no' else color_roi or 'yellow'
+        color_axes = None if color_axes == 'no' else color_axes or 'blue'
+
         cropx, cropy = cls.get_roi(data, cropx, cropy)
         x0, y0 = cropx[0], cropy[0]
+        center = imagex.roi_center - x0, imagey.roi_center - y0
 
-        if None in (fig, axis):
-            fig, axis = _plt.subplots()
+        if None in (fig, axes):
+            fig, axes = _plt.subplots()
 
         # plot image
         data = cls._trim_image(data, cropx, cropy)
-        axis.imshow(data, extent=None)
+        axes.imshow(data, extent=None)
+
+        if color_axes:
+            center_ = imagex.roi_center, imagey.roi_center
+            [x1, x2], [y1, y2] = Image2D_ROI._get_normal_axes(
+                center_, angle, imagex, imagey, slope_inv_flag=False)
+            axes.plot([x1 - x0, x2 - x0], [y1 - y0, y2 - y0], '--', color=color_axes)
+            [x1, x2], [y1, y2] = Image2D_ROI._get_normal_axes(
+                center_, angle, imagex, imagey, slope_inv_flag=True)
+            axes.plot([x1 - x0, x2 - x0], [y1 - y0, y2 - y0], '--', color=color_axes)
 
         if color_ellip:
             # plot center
-            axis.plot(
-                imagex.roi_center - x0, imagey.roi_center - y0, 'o',
-                ms=2, color=color_ellip)
+            axes.plot(*center, 'o', ms=2, color=color_ellip)
 
             # plot intersecting ellipse at half maximum
             ellipse = _patches.Ellipse(
-                xy=(imagex.roi_center - x0, imagey.roi_center - y0),
-                width=imagex.roi_fwhm, height=imagey.roi_fwhm,
+                xy=center, width=imagex.roi_fwhm, height=imagey.roi_fwhm,
                 angle=-angle, linewidth=1,
                 edgecolor=color_ellip, fill='false', facecolor='none')
-            axis.add_patch(ellipse)
+            axes.add_patch(ellipse)
 
         if color_roi:
             # plot roi
@@ -893,9 +907,46 @@ class Image2D_ROI(Image2D):
                 width, height, linewidth=1, edgecolor=color_roi,
                 fill='False',
                 facecolor='none')
-            axis.add_patch(rect)
+            axes.add_patch(rect)
 
-        return fig, axis
+        return fig, axes
+
+    @staticmethod
+    def _get_normal_axes(center, angle, imagex, imagey, slope_inv_flag):
+        # transform input angle
+        if slope_inv_flag:
+            angle += 90
+        angle *= _np.pi / 180
+
+        # check if angle corresponds to special cases n*pi ot n*(pi/2) tilt.
+        SMALL_ANGLE_DEV = 1e-8
+        sina = _np.sin(-angle)
+        if abs(sina) < SMALL_ANGLE_DEV:
+            return imagex.roi, [center[1], center[1]]
+        elif 1 - abs(sina) < SMALL_ANGLE_DEV:
+            return [center[0], center[0]], imagey.roi
+        else:
+            slope = _np.tan(-angle)
+
+        # define auxiliary function
+        def get_axis_point(x, b, slope):
+            y = slope * x + b
+            if y < imagey.roi[0]:
+                x = (imagey.roi[0] - b) / slope
+                y = imagey.roi[0] + 1
+            elif y > imagey.roi[1]:
+                x = (imagey.roi[1] - b) / slope
+                y = imagey.roi[1] - 1
+            return x, y
+
+        # general case of angle
+        b = center[1] - slope * center[0]
+        x1 = imagex.roi[0] + 1
+        x1, y1 = get_axis_point(x1, b, slope)
+        x2 = imagex.roi[1] - 1
+        x2, y2 = get_axis_point(x2, b, slope)
+
+        return [x1, x2], [y1, y2]
 
     @staticmethod
     def _trim_image(image, roix, roiy):
@@ -963,7 +1014,7 @@ class Image2D_CMom(Image2D_ROI):
         return mompq
 
     def imshow(
-            self, fig=None, axis=None,
+            self, fig=None, axes=None,
             cropx = None, cropy = None,
             color_ellip=None, color_roi=None):
         """."""
@@ -972,16 +1023,16 @@ class Image2D_CMom(Image2D_ROI):
         cropx, cropy = Image2D.get_roi(self.data, cropx, cropy)
         x0, y0 = cropx[0], cropy[0]
 
-        if None in (fig, axis):
-            fig, axis = _plt.subplots()
+        if None in (fig, axes):
+            fig, axes = _plt.subplots()
 
         # plot image
         data = Image2D_ROI._trim_image(self.data, cropx, cropy)
-        axis.imshow(data, extent=None)
+        axes.imshow(data, extent=None)
 
         if color_ellip:
             # plot center
-            axis.plot(
+            axes.plot(
                 self.roi_meanx - x0, self.roi_meany - y0, 'o',
                 ms=2, color=color_ellip)
 
@@ -991,7 +1042,7 @@ class Image2D_CMom(Image2D_ROI):
                 width=self.roi_sigmax, height=self.roi_sigmay, angle=0,
                 linewidth=1,
                 edgecolor=color_ellip, fill='false', facecolor='none')
-            axis.add_patch(ellipse)
+            axes.add_patch(ellipse)
 
         if color_roi:
             # plot roi
@@ -1003,9 +1054,9 @@ class Image2D_CMom(Image2D_ROI):
                 width, height, linewidth=1, edgecolor=color_roi,
                 fill='False',
                 facecolor='none')
-            axis.add_patch(rect)
+            axes.add_patch(rect)
 
-        return fig, axis
+        return fig, axes
 
     def __str__(self):
         """."""
@@ -1101,27 +1152,27 @@ class Image1D_Fit(Image1D_ROI):
         self._is_saturated = value is True
 
     def plot_projection(
-            self, fig=None, axis=None):
+            self, fig=None, axes=None):
         """."""
-        if None in (fig, axis):
-            fig, axis = _plt.subplots()
+        if None in (fig, axes):
+            fig, axes = _plt.subplots()
 
         color = [0, 0.7, 0]
 
-        axis.plot(
+        axes.plot(
             self.roi_indcs, self.roi_proj,
             color=color, alpha=1.0,
             lw=5, label='roi_proj')
         vecy, vecx = self.roi_fit
         if vecy is not None:
-            axis.plot(
+            axes.plot(
                 vecx, vecy, color=[0.5, 1, 0.5], alpha=1.0,
                 lw=2, label='roix_fit')
 
-        axis.legend()
-        axis.grid()
-        axis.set_ylabel('ROI pixel index')
-        axis.set_ylabel('Projection Intensity')
+        axes.legend()
+        axes.grid()
+        axes.set_ylabel('ROI pixel index')
+        axes.set_ylabel('Projection Intensity')
 
     def __str__(self):
         """."""
@@ -1213,8 +1264,8 @@ class Image2D_Fit(Image2D):
     def calc_angle_with_roi(self):
         """Calculate image tilt angle within ROI.
 
-        A linear y = ax + b is performed over the image and the angle is
-        taken from the arctan of the angular coefficient. Each image point
+        A linear y = ax + b fit is performed over the image and the tilt angle
+        is taken from the arctan of the angular coefficient. Each image point
         is weighted by the fourth power of the image intensity.
         """
         roix, roiy = self.fitx.roi, self.fity.roi
@@ -1222,18 +1273,18 @@ class Image2D_Fit(Image2D):
         mx, my = _np.meshgrid(indcsx, indcsy)
         data = self.data[slice(*roiy), slice(*roix)]
         data = data * data
-        data = data * data
+        data *= data
         mxd = mx * data
-        a11 = _np.sum(mx * mxd)
+        a11 = _np.sum(data)
         a12 = _np.sum(mxd)
-        a22 = _np.sum(data)
-        b1 = _np.sum(my * mxd)
-        b2 = _np.sum(my * data)
+        a22 = _np.sum(mx * mxd)
+        b1 = _np.sum(my * data)
+        b2 = _np.sum(my * mxd)
         a = _np.array([[a11, a12], [a12, a22]])
         b = _np.array([b1, b2])
         v = _np.linalg.solve(a, b)
-        angle = _np.arctan(v[0]) * 180 / _np.pi
-        angle *= -1  # sign due to the directions of vertical pixel increase
+        angle = _np.arctan(v[1]) * 180 / _np.pi
+        angle *= -1  # sign change due to the dir of vertical pixel increase
         return angle
 
     def calc_mode_sigmas(self):
@@ -1269,49 +1320,50 @@ class Image2D_Fit(Image2D):
         return sigma1, sigma2
 
     def imshow(
-            self, fig=None, axis=None,
+            self, fig=None, axes=None,
             cropx = None, cropy = None,
-            color_ellip=None, color_roi=None):
+            color_ellip=None, color_roi=None, color_axes=None):
         """."""
         return Image2D_ROI.imshow_images(
             self.data, self.fitx, self.fity, self.fitx.roi, self.fity.roi,
             angle=self.angle,
-            fig=fig, axis=axis,
+            fig=fig, axes=axes,
             cropx = cropx, cropy = cropy,
-            color_ellip=color_ellip, color_roi=color_roi)
+            color_ellip=color_ellip, color_roi=color_roi,
+            color_axes=color_axes)
 
     def plot_projections(
-            self, fig=None, axis=None):
+            self, fig=None, axes=None):
         """."""
-        if None in (fig, axis):
-            fig, axis = _plt.subplots()
+        if None in (fig, axes):
+            fig, axes = _plt.subplots()
 
         colorx, colory = [0, 0, 0.7], [0.7, 0, 0]
 
-        axis.plot(
+        axes.plot(
             self.fitx.roi_indcs, self.fitx.roi_proj,
             color=colorx, alpha=1.0,
             lw=5, label='roix_proj')
         vecy, vecx = self.fitx.roi_fit
         if vecy is not None:
-            axis.plot(
+            axes.plot(
                 vecx, vecy, color=[0.5, 0.5, 1], alpha=1.0,
                 lw=2, label='roix_fit')
 
-        axis.plot(
+        axes.plot(
             self.fity.roi_indcs, self.fity.roi_proj,
             color=colory, alpha=1.0, lw=5,
             label='roiy_proj')
         vecy, vecx = self.fity.roi_fit
         if vecy is not None:
-            axis.plot(
+            axes.plot(
                 vecx, vecy, color=[1, 0.5, 0.5], alpha=1.0,
                 lw=2, label='roiy_fit')
 
-        axis.legend()
-        axis.grid()
-        axis.set_ylabel('ROI pixel indices')
-        axis.set_ylabel('Projection Intensity')
+        axes.legend()
+        axes.grid()
+        axes.set_ylabel('ROI pixel indices')
+        axes.set_ylabel('Projection Intensity')
 
     def __str__(self):
         """."""
