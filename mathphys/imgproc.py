@@ -1298,7 +1298,8 @@ class Image2D_Fit(Image2D):
         sigmax = self.fitx.roi_sigma
         sigmay = self.fity.roi_sigma
         sigma_max = max(sigmax, sigmay)
-        func, funs = _np.cos(-self.angle), _np.sin(-self.angle)
+        angle = -self.angle * _np.pi / 180
+        func, funs = _np.cos(angle), _np.sin(angle)
 
         det = func**2 - funs**2
         if abs(det) < 1e-6:
@@ -1307,14 +1308,9 @@ class Image2D_Fit(Image2D):
         sigma1sqr = 1/det * (func**2 * sigmax**2 - funs**2 * sigmay**2)
         sigma2sqr = 1/det * (-funs**2 * sigmax**2 + func**2 * sigmay**2)
 
-        if sigma1sqr > 0:
-            sigma1 = min(_np.sqrt(sigma1sqr), sigma_max)
-        else:
-            sigma1 = _np.nan
-        if sigma2sqr > 0:
-            sigma2 = min(_np.sqrt(sigma2sqr), sigma_max)
-        else:
-            sigma2 = _np.nan
+        sigma1 = _np.sqrt(sigma1sqr) if sigma1sqr > 0 else _np.nan
+        sigma2 = _np.sqrt(sigma2sqr) if sigma2sqr > 0 else _np.nan
+
         return sigma1, sigma2
 
     def imshow(
