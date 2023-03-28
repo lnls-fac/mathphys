@@ -1019,6 +1019,15 @@ class Image2D_CMom(Image2D_ROI):
         """."""
         return self._cmomxx
 
+    @property
+    def angle(self):
+        """Return tilt angle [deg]"""
+        if self.cmomxx - self.cmomyy < self._SMALL_ANGLE_DEV:
+            return 0
+        angle = \
+            -0.5 * _np.arctan(2*self.cmomxy/(self.cmomxx - self.cmomyy))
+        return angle * 180 / _np.pi
+
     def calc_central_moment(self, order_x, order_y):
         """."""
         # 9.98 ms ± 19.1 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
@@ -1030,17 +1039,13 @@ class Image2D_CMom(Image2D_ROI):
 
     def imshow(self, *args, **kwargs):
         """."""
-        if self.cmomxx - self.cmomyy < self._SMALL_ANGLE_DEV:
-            angle = 0
-        else:
-            angle = \
-                -0.5 * _np.arctan(2*self.cmomxy/(self.cmomxx - self.cmomyy))
-        angle *= 180 / _np.pi
         centerx = kwargs.pop('centerx', self.cmomx)
         centery = kwargs.pop('centery', self.cmomy)
-        sigmax = kwargs.pop('sigmax', _np.sqrt(self.cmomxx))
-        sigmay = kwargs.pop('sigmay', _np.sqrt(self.cmomyy))
-        sigmay = kwargs.pop('angle', _np.sqrt(self.cmomyy))
+        # plot ellipse at I = I_max / 2
+        sigmax = kwargs.pop('sigmax', _np.sqrt(2*_np.log(2)*self.cmomxx))
+        sigmay = kwargs.pop('sigmay', _np.sqrt(2*_np.log(2)*self.cmomyy))
+        angle = kwargs.pop('angle', self.angle)
+
         fig, axes = Image2D_ROI.imshow_images(
             self.data, self.imagex, self.imagey, self.roix, self.roiy,
             *args,
