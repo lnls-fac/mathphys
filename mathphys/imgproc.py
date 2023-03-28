@@ -708,6 +708,8 @@ class Image1D_ROI(Image1D):
 class Image2D_ROI(Image2D):
     """2D-Image ROI."""
 
+    _SMALL_ANGLE_DEV = 1e-8
+
     def __init__(self, data, roix=None, roiy=None, *args, **kwargs):
         """."""
         # benchmark for sizes=(1024, 1280)
@@ -825,6 +827,8 @@ class Image2D_ROI(Image2D):
     @classmethod
     def imshow_images(
             cls, data, imagex, imagey, roix, roiy, angle=0,
+            centerx=None, centery=None,
+            sigmax=None, sigmay=None,
             fig=None, axes=None,
             cropx=None, cropy=None,
             color_ellip=None, color_roi=None, color_axes=None):
@@ -840,6 +844,14 @@ class Image2D_ROI(Image2D):
                 image roi in Y.
             angle (float) : Rotation angle of ellipse to be ploted. Defaults
                 to 0. Unit: degree.
+            centerx (float) : center of image in X. Defaults to None
+             (in which case the center of imagex is used)
+            centery (float) : center of image in Y. Defaults to None
+             (in which case the center of imagey is used)
+            sigmax (float) : sigma of image in X. Defaults to None
+             (in which case the fwhm of imagex is used)
+            sigmay (float) : sigma of image in Y. Defaults to None
+             (in which case the fwhm of imagey is used)
             fig (None | matplotlib.figure) : Handle to figure.
                 Defaults to None (create a new fig, axes)
             axes (None | matplotlib.axes) : Hande to axes.
@@ -865,10 +877,14 @@ class Image2D_ROI(Image2D):
         color_ellip = None if color_ellip == 'no' else color_ellip or 'tab:red'
         color_roi = None if color_roi == 'no' else color_roi or 'yellow'
         color_axes = None if color_axes == 'no' else color_axes or 'blue'
+        centerx = centerx if centerx is not None else imagex.roi_center
+        centery = centery if centery is not None else imagey.roi_center
+        sigmax = sigmax if sigmax is not None else imagex.roi_fwhm
+        sigmay = sigmay if sigmay is not None else imagey.roi_fwhm
 
         cropx, cropy = cls.get_roi(data, cropx, cropy)
         x0, y0 = cropx[0], cropy[0]
-        center = imagex.roi_center - x0, imagey.roi_center - y0
+        center = centerx - x0, centery - y0
 
         if None in (fig, axes):
             fig, axes = _plt.subplots()
@@ -878,7 +894,7 @@ class Image2D_ROI(Image2D):
         axes.imshow(data, extent=None)
 
         if color_axes:
-            center_ = imagex.roi_center, imagey.roi_center
+            center_ = centerx, centery
             [x1, x2], [y1, y2] = Image2D_ROI._get_normal_axes(
                 center_, angle, imagex, imagey, slope_inv_flag=False)
             axes.plot([x1 - x0, x2 - x0], [y1 - y0, y2 - y0], '--', color=color_axes)
@@ -892,7 +908,7 @@ class Image2D_ROI(Image2D):
 
             # plot intersecting ellipse at half maximum
             ellipse = _patches.Ellipse(
-                xy=center, width=imagex.roi_fwhm, height=imagey.roi_fwhm,
+                xy=center, width=sigmax, height=sigmay,
                 angle=-angle, linewidth=1,
                 edgecolor=color_ellip, fill='false', facecolor='none')
             axes.add_patch(ellipse)
@@ -911,19 +927,19 @@ class Image2D_ROI(Image2D):
 
         return fig, axes
 
-    @staticmethod
-    def _get_normal_axes(center, angle, imagex, imagey, slope_inv_flag):
+    @classmethod
+    def _get_normal_axes(cls, center, angle, imagex, imagey, slope_inv_flag):
         # transform input angle
         if slope_inv_flag:
             angle += 90
         angle *= _np.pi / 180
 
-        # check if angle corresponds to special cases n*pi ot n*(pi/2) tilt.
-        SMALL_ANGLE_DEV = 1e-8
+        # check if angle corresponds to special cases n*pi or n*(pi/2) tilt.
+        cls._SMALL_ANGLE_DEV = 1e-8
         sina = _np.sin(-angle)
-        if abs(sina) < SMALL_ANGLE_DEV:
+        if abs(sina) < cls._SMALL_ANGLE_DEV:
             return imagex.roi, [center[1], center[1]]
-        elif 1 - abs(sina) < SMALL_ANGLE_DEV:
+        elif 1 - abs(sina) < cls._SMALL_ANGLE_DEV:
             return [center[0], center[0]], imagey.roi
         else:
             slope = _np.tan(-angle)
@@ -979,93 +995,70 @@ class Image2D_CMom(Image2D_ROI):
         return self._roiy_meshgrid
 
     @property
-    def roi_cmomy(self):
+    def cmomy(self):
         """."""
         return self._cmomy
 
     @property
-    def roi_cmomx(self):
+    def cmomx(self):
         """."""
         return self._cmomx
 
     @property
-    def roi_cmomyy(self):
+    def cmomyy(self):
         """."""
-        return _np.sqrt(self._cmomyy)
+        return self._cmomyy
 
     @property
-    def roi_cmomxy(self):
+    def cmomxy(self):
         """."""
-        return _np.arctan(
-            self._cmomxy / _np.sqrt(self.roi_sigmax * self.roi_sigmay))
+        return self._cmomxy
 
     @property
-    def roi_cmomxx(self):
+    def cmomxx(self):
         """."""
-        return _np.sqrt(self._cmomxx)
+        return self._cmomxx
 
     def calc_central_moment(self, order_x, order_y):
         """."""
         # 9.98 ms ± 19.1 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
         mgx = self.roix_meshgrid - self._cmomx
         mgy = self.roiy_meshgrid - self._cmomy
-        sumpq = _np.sum(mgx**order_x * mgy**order_y * self.roi_data)
-        mompq = sumpq / self.roi_data.size
+        sumpq = _np.sum(mgx**order_x * mgy**order_y * self.data)
+        mompq = sumpq / self.data.size
         return mompq
 
-    def imshow(
-            self, fig=None, axes=None,
-            cropx = None, cropy = None,
-            color_ellip=None, color_roi=None):
+    def imshow(self, *args, **kwargs):
         """."""
-        color_ellip = None if color_ellip == 'no' else color_ellip or 'tab:red'
-        color_roi = None if color_roi == 'no' else color_roi or 'yellow'
-        cropx, cropy = Image2D.get_roi(self.data, cropx, cropy)
-        x0, y0 = cropx[0], cropy[0]
-
-        if None in (fig, axes):
-            fig, axes = _plt.subplots()
-
-        # plot image
-        data = Image2D_ROI._trim_image(self.data, cropx, cropy)
-        axes.imshow(data, extent=None)
-
-        if color_ellip:
-            # plot center
-            axes.plot(
-                self.roi_meanx - x0, self.roi_meany - y0, 'o',
-                ms=2, color=color_ellip)
-
-            # plot intersecting ellipse at half maximum
-            ellipse = _patches.Ellipse(
-                xy=(self.roi_meanx - x0, self.roi_meany - y0),
-                width=self.roi_sigmax, height=self.roi_sigmay, angle=0,
-                linewidth=1,
-                edgecolor=color_ellip, fill='false', facecolor='none')
-            axes.add_patch(ellipse)
-
-        if color_roi:
-            # plot roi
-            roix1, roix2 = self.roix
-            roiy1, roiy2 = self.roiy
-            width, height = _np.abs(roix2-roix1), _np.abs(roiy2-roiy1)
-            rect = _patches.Rectangle(
-                (roix1 - x0, roiy1 - y0),
-                width, height, linewidth=1, edgecolor=color_roi,
-                fill='False',
-                facecolor='none')
-            axes.add_patch(rect)
-
+        if self.cmomxx - self.cmomyy < self._SMALL_ANGLE_DEV:
+            angle = 0
+        else:
+            angle = \
+                -0.5 * _np.arctan(2*self.cmomxy/(self.cmomxx - self.cmomyy))
+        angle *= 180 / _np.pi
+        centerx = kwargs.pop('centerx', self.cmomx)
+        centery = kwargs.pop('centery', self.cmomy)
+        sigmax = kwargs.pop('sigmax', _np.sqrt(self.cmomxx))
+        sigmay = kwargs.pop('sigmay', _np.sqrt(self.cmomyy))
+        sigmay = kwargs.pop('angle', _np.sqrt(self.cmomyy))
+        fig, axes = Image2D_ROI.imshow_images(
+            self.data, self.imagex, self.imagey, self.roix, self.roiy,
+            *args,
+            angle=angle,
+            centerx=centerx, centery=centery,
+            sigmax=sigmax, sigmay=sigmay,
+            **kwargs)
         return fig, axes
 
     def __str__(self):
         """."""
         res = super().__str__()
-        res += f'\nroi_cmomx       : {self.roi_meanx}'
-        res += f'\nroi_cmomy       : {self.roi_meany}'
-        res += f'\nroi_cmomxx      : {self.roi_sigmax}'
-        res += f'\nroi_cmomyy      : {self.roi_sigmay}'
-        res += f'\nroi_cmomxy      : {self.roi_angle}'
+        res += '\n--- cmom ---'
+        res += f'\ncmomx           : {self.cmomx}'
+        res += f'\ncmomy           : {self.cmomy}'
+        res += f'\ncmomxx          : {self.cmomxx}'
+        res += f'\ncmomyy          : {self.cmomyy}'
+        res += f'\ncmomxy          : {self.cmomxy}'
         return res
 
     def _update_image_roi(self, roix=None, roiy=None):
@@ -1074,7 +1067,7 @@ class Image2D_CMom(Image2D_ROI):
         super()._update_image_roi(roix=roix, roiy=roiy)
 
         self._roix_meshgrid, self._roiy_meshgrid = \
-            _np.meshgrid(self.roix_indcs, self.roiy_indcs)
+            _np.meshgrid(self.imagex.roi_indcs, self.imagey.roi_indcs)
         self._cmomx, self._cmomy = self._calc_cmom1()
         self._cmomxx = self.calc_central_moment(2, 0)
         self._cmomxy = self.calc_central_moment(1, 1)
@@ -1082,9 +1075,9 @@ class Image2D_CMom(Image2D_ROI):
 
     def _calc_cmom1(self):
         #17.6 µs ± 108 ns per loop (mean ± std. dev. of 7 runs, 100000 loops each)
-        cmom0 = _np.sum(self.roix_proj)  # same as for y
-        cmomx = _np.sum(self.roix_proj * self.roix_indcs) / cmom0
-        cmomy = _np.sum(self.roiy_proj * self.roiy_indcs) / cmom0
+        cmom0 = _np.sum(self.imagex.roi_proj)  # same as for y
+        cmomx = _np.sum(self.imagex.roi_proj * self.imagex.roi_indcs) / cmom0
+        cmomy = _np.sum(self.imagey.roi_proj * self.imagey.roi_indcs) / cmom0
         return cmomx, cmomy
 
 
