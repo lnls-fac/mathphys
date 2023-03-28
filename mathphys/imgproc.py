@@ -1295,16 +1295,14 @@ class Image2D_Fit(Image2D):
         #
         # sigmax² = C² sigma1² + S² sigma2²
         # sigmay² = S² sigma1² + C² sigma2²
-        sigmax = self.fitx.roi_sigma
-        sigmay = self.fity.roi_sigma
-        sigma_max = max(sigmax, sigmay)
         angle = -self.angle * _np.pi / 180
         func, funs = _np.cos(angle), _np.sin(angle)
-
         det = func**2 - funs**2
         if abs(det) < 1e-6:
             return _np.nan, _np.nan
 
+        sigmax = self.fitx.roi_sigma
+        sigmay = self.fity.roi_sigma
         sigma1sqr = 1/det * (func**2 * sigmax**2 - funs**2 * sigmay**2)
         sigma2sqr = 1/det * (-funs**2 * sigmax**2 + func**2 * sigmay**2)
 
