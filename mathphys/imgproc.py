@@ -221,11 +221,12 @@ class FitGaussian:
 class FitGaussianScipy(FitGaussian):
     """."""
 
-    def __init__(self, use_jacobian=True):
+    def __init__(self, use_jacobian=True, maxfev=500):
         """."""
         from scipy.optimize import curve_fit
         self._use_jacobian = use_jacobian
         self._curve_fit_func = curve_fit
+        self._maxfev = maxfev
 
     @property
     def use_jacobian(self):
@@ -261,7 +262,7 @@ class FitGaussianScipy(FitGaussian):
         # TODO: use covariance matrix to estimate parameter errors
         jac = self.jac_gaussian if self.use_jacobian else None
         param, *ret = self._curve_fit_func(
-            self.gaussian, indcs, proj, param0, jac=jac)
+            self.gaussian, indcs, proj, param0, jac=jac, maxfev=self._maxfev)
         return param, ret
 
     def calc_fit(self, image, proj, indcs, center):
