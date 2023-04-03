@@ -408,8 +408,12 @@ class Image2D:
     """2D-Images."""
 
     SATURATION_8BITS = FitGaussian.SATURATION_8BITS
+    INTENSITY_THRESHOLD = 10
 
-    def __init__(self, data, saturation_threshold=SATURATION_8BITS):
+    def __init__(
+            self, data,
+            saturation_threshold=SATURATION_8BITS,
+            intensity_threshold=INTENSITY_THRESHOLD):
         """."""
         # benchmark for sizes=(1024, 1280):
         #   558 µs ± 121 µs per loop
@@ -417,7 +421,9 @@ class Image2D:
 
         self._data = None
         self._saturation_threshold = saturation_threshold
+        self._intensity_threshold = intensity_threshold
         self._is_saturated = None
+        self._is_with_image = None
         self._update_image(data)
 
     @property
@@ -439,6 +445,17 @@ class Image2D:
     def saturation_threshold(self, value):
         """."""
         self._saturation_threshold = value
+        self._update_image(self.data)
+
+    @property
+    def intensity_threshold(self):
+        """."""
+        return self._intensity_threshold
+
+    @intensity_threshold.setter
+    def intensity_threshold(self, value):
+        """."""
+        self._intensity_threshold = value
         self._update_image(self.data)
 
     @property
@@ -486,6 +503,11 @@ class Image2D:
     def is_saturated(self):
         """Check if image is saturated."""
         return self._is_saturated
+    
+    @property
+    def is_with_image(self):
+        """Check if image has signal."""
+        return self._is_with_image
 
     def imshow(self, fig=None, axes=None, cropx=None, cropy=None):
         """."""
@@ -548,6 +570,10 @@ class Image2D:
         else:
             self._is_saturated = \
                 _np.any(self.data >= self.saturation_threshold)
+        if self.intensity_threshold is None:
+            self._is_with_image = True
+        else:
+            self._is_with_image = self.intensity_max > self.intensity_threshold
 
 
 class Image1D_ROI(Image1D):
