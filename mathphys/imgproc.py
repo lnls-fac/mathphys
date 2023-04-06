@@ -35,7 +35,7 @@ class FitGaussian:
     SATURATION_8BITS = 2**8-1
     SATURATION_12BITS = 2**12-1
     SATURATION_16BITS = 2**16-1
-    _SIGMA2FWHM = 2 * _np.sqrt(2*_np.log(2))
+    SIGMA2FWHM = 2 * _np.sqrt(2*_np.log(2))
 
     @staticmethod
     def gaussian(indcs, sigma, mean, amplitude, offset):
@@ -199,12 +199,12 @@ class FitGaussian:
     @staticmethod
     def conv_sigma2fwhm(sigma):
         """."""
-        return sigma * FitGaussian._SIGMA2FWHM
+        return sigma * FitGaussian.SIGMA2FWHM
 
     @staticmethod
     def conv_fwhm2sigma2(fwhm):
         """."""
-        return fwhm / FitGaussian._SIGMA2FWHM
+        return fwhm / FitGaussian.SIGMA2FWHM
 
     @staticmethod
     def _process_args(
@@ -288,7 +288,7 @@ class FitGaussianScipy(FitGaussian):
     def calc_fit(self, image, proj, indcs, center):
         """."""
         # calc param0
-        sigma = max(1, image.roi_fwhm / 2.35)
+        sigma = max(1, image.roi_fwhm / FitGaussian.SIGMA2FWHM)
         mean = image.roi_center
         amplitude = image.intensity_max - image.intensity_min
         offset = image.intensity_min
@@ -398,8 +398,8 @@ class Image1D:
         res += f'\nintensity_max   : {self.intensity_max}'
         res += f'\nintensity_avg   : {self.intensity_sum/self.size}'
         res += f'\nintensity_sum   : {self.intensity_sum}'
-        res += f'\nsaturation_val  : {self.saturation_threshold}'
-        res += f'\nsaturated       : {self.is_saturated}'
+        res += f'\nsaturation_thr  : {self.saturation_threshold}'
+        res += f'\nis_saturated    : {self.is_saturated}'
         return res
 
     @staticmethod
@@ -416,7 +416,7 @@ class Image1D:
         """."""
         self._data = _np.asarray(data)
         if self.saturation_threshold is None:
-            self._is_saturated = False
+            self._is_saturated = None
         else:
             self._is_saturated = \
                 _np.any(self.data >= self.saturation_threshold)
@@ -558,8 +558,10 @@ class Image2D:
         res += f'\nintensity_max   : {self.intensity_max}'
         res += f'\nintensity_avg   : {self.intensity_sum/self.size}'
         res += f'\nintensity_sum   : {self.intensity_sum}'
-        res += f'\nsaturation_val  : {self.saturation_threshold}'
-        res += f'\nsaturated       : {self.is_saturated}'
+        res += f'\nintensity_thr   : {self.intensity_threshold}'
+        res += f'\nis_with_image   : {self.is_with_image}'
+        res += f'\nsaturation_thr  : {self.saturation_threshold}'
+        res += f'\nis_saturated    : {self.is_saturated}'
         return res
 
     @staticmethod
@@ -1526,8 +1528,10 @@ class Image2D_Fit(Image2D):
         res += f'\nroi_mean        : {self.fity.roi_mean}'
         res += f'\nroi_sigma       : {self.fity.roi_sigma}'
         res += f'\nroi_fit_err     : {self.fity.roi_fit_error} %'
-        res += '\n--- bigauss ---'
+        res += '\n--- fit2D ---'
         res += f'\nangle           : {self.angle} deg.'
+        res += f'\nsigma1          : {self.sigma1}'
+        res += f'\nsigma2          : {self.sigma2}'
 
         return res
 
@@ -1542,20 +1546,25 @@ class Image2D_Fit(Image2D):
 
     def _update_image_fit(self, roix=None, roiy=None):
         """."""
-        # fit projections
-        roix, roiy = Image2D.update_roi(self.data, roix, roiy)
-        data = self.project_image(self._data, 0)
-        self._fity = Image1D_Fit(
-            data=data, roi=roiy, fitgauss=self._fitgauss)
-        self._fity.set_saturation_flag(self.is_saturated)
-        data = self.project_image(self._data, 1)
-        self._fitx = Image1D_Fit(
-            data=data, roi=roix, fitgauss=self._fitgauss)
-        self._fitx.set_saturation_flag(self.is_saturated)
+        if self.is_with_image:
+            # fit projections
+            roix, roiy = Image2D.update_roi(self.data, roix, roiy)
+            data = self.project_image(self._data, 0)
+            self._fity = Image1D_Fit(
+                data=data, roi=roiy, fitgauss=self._fitgauss)
+            self._fity.set_saturation_flag(self.is_saturated)
+            data = self.project_image(self._data, 1)
+            self._fitx = Image1D_Fit(
+                data=data, roi=roix, fitgauss=self._fitgauss)
+            self._fitx.set_saturation_flag(self.is_saturated)
 
-        # fit angle
-        # self._angle = self.calc_angle_with_roi()
-        angle, sigma1, sigma2 = self.calc_angle_normal_sigmas()
-        self._angle = angle
-        self._sigma1 = sigma1
-        self._sigma2 = sigma2
+            # fit angle
+            # self._angle = self.calc_angle_with_roi()
+            angle, sigma1, sigma2 = self.calc_angle_normal_sigmas()
+            self._angle = angle
+            self._sigma1 = sigma1
+            self._sigma2 = sigma2
+        else:
+            self._angle = 0
+            self._sigma1 = 0
+            self._sigma2 = 0
