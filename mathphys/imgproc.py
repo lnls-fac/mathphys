@@ -224,7 +224,10 @@ class FitGaussianScipy(FitGaussian):
 
     def __init__(self, use_jacobian=True, maxfev=500):
         """."""
-        from scipy.optimize import curve_fit
+        try:
+            from scipy.optimize import curve_fit
+        except ModuleNotFoundError as err:
+            raise Exception('FitGaussianScipy requires scipy!') from err
         self._use_jacobian = use_jacobian
         self._curve_fit_func = curve_fit
         self._maxfev = maxfev
@@ -1135,7 +1138,7 @@ class Image2D_CMom(Image2D_ROI):
         res += f'\nsigma2          : {self.sigma2}'
         res += f'\nangle           : {self.angle}'
         res += f'\nsigmax          : {self.sigmax}'
-        res += f'\nsigmax          : {self.sigmay}'
+        res += f'\nsigmay          : {self.sigmay}'
         return res
 
     def _update_image_roi(self, roix=None, roiy=None):
@@ -1164,14 +1167,14 @@ class Image2D_CMom(Image2D_ROI):
         self._sigmay = sigmay
 
     @staticmethod
-    def calc_meshgrids(imagex : Image1D_ROI, imagey : Image2D_ROI):
+    def calc_meshgrids(imagex : Image1D_ROI, imagey : Image1D_ROI):
         """."""
         roix_meshgrid, roiy_meshgrid = \
             _np.meshgrid(imagex.roi_indcs, imagey.roi_indcs)
         return roix_meshgrid, roiy_meshgrid
 
     @staticmethod
-    def calc_cmom1(imagex : Image1D_ROI, imagey : Image2D_ROI):
+    def calc_cmom1(imagex : Image1D_ROI, imagey : Image1D_ROI):
         """."""
         # benchmark for sizes=(1024, 1280)
         #   18.4 µs ± 102 ns per loop
