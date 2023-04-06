@@ -35,6 +35,7 @@ class FitGaussian:
     SATURATION_8BITS = 2**8-1
     SATURATION_12BITS = 2**12-1
     SATURATION_16BITS = 2**16-1
+    _SIGMA2FWHM = 2 * _np.sqrt(2*_np.log(2))
 
     @staticmethod
     def gaussian(indcs, sigma, mean, amplitude, offset):
@@ -194,6 +195,16 @@ class FitGaussian:
             roi_gaussian_error = _np.nan
         fit = (param, roi_gaussian_fit, roi_gaussian_error)
         return fit
+
+    @staticmethod
+    def conv_sigma2fwhm(sigma):
+        """."""
+        return sigma * FitGaussian._SIGMA2FWHM
+
+    @staticmethod
+    def conv_fwhm2sigma2(fwhm):
+        """."""
+        return fwhm / FitGaussian._SIGMA2FWHM
 
     @staticmethod
     def _process_args(
@@ -829,8 +840,7 @@ class Image2D_ROI(Image2D):
 
         return Image2D_ROI.imshow_images(
             self.data, self.imagex, self.imagey, self.roix, self.roiy,
-            fig=fig, axes=axes,
-            cropx = cropx, cropy = cropy,
+            fig=fig, axes=axes, cropx = cropx, cropy = cropy,
             color_ellip=color_ellip, color_roi=color_roi)
 
     def create_trimmed(self):
@@ -863,10 +873,8 @@ class Image2D_ROI(Image2D):
     @classmethod
     def imshow_images(
             cls, data, imagex, imagey, roix, roiy, angle=0,
-            centerx=None, centery=None,
-            sigmax=None, sigmay=None,
-            fig=None, axes=None,
-            cropx=None, cropy=None,
+            centerx=None, centery=None, fwhmx=None, fwhmy=None,
+            fig=None, axes=None, cropx=None, cropy=None,
             color_ellip=None, color_roi=None, color_axes=None):
         """Show image.
 
@@ -884,9 +892,9 @@ class Image2D_ROI(Image2D):
              (in which case the center of imagex is used)
             centery (float) : center of image in Y. Defaults to None
              (in which case the center of imagey is used)
-            sigmax (float) : sigma of image in X. Defaults to None
+            fwhmx (float) : FWHM of image in X. Defaults to None
              (in which case the fwhm of imagex is used)
-            sigmay (float) : sigma of image in Y. Defaults to None
+            fwhmy (float) : FWHM of image in Y. Defaults to None
              (in which case the fwhm of imagey is used)
             fig (None | matplotlib.figure) : Handle to figure.
                 Defaults to None (create a new fig, axes)
@@ -915,8 +923,8 @@ class Image2D_ROI(Image2D):
         color_axes = None if color_axes == 'no' else color_axes or 'blue'
         centerx = centerx if centerx is not None else imagex.roi_center
         centery = centery if centery is not None else imagey.roi_center
-        sigmax = sigmax if sigmax is not None else imagex.roi_fwhm
-        sigmay = sigmay if sigmay is not None else imagey.roi_fwhm
+        fwhmx = fwhmx if fwhmx is not None else imagex.roi_fwhm
+        fwhmy = fwhmy if fwhmy is not None else imagey.roi_fwhm
 
         cropx, cropy = cls.update_roi(data, cropx, cropy)
         x0, y0 = cropx[0], cropy[0]
@@ -944,7 +952,7 @@ class Image2D_ROI(Image2D):
 
             # plot intersecting ellipse at half maximum
             ellipse = _patches.Ellipse(
-                xy=center, width=sigmax, height=sigmay,
+                xy=center, width=fwhmx, height=fwhmy,
                 angle=-angle, linewidth=1,
                 edgecolor=color_ellip, fill='false', facecolor='none')
             axes.add_patch(ellipse)
@@ -1111,18 +1119,20 @@ class Image2D_CMom(Image2D_ROI):
         """."""
         centerx = kwargs.pop('centerx', self.cmomx)
         centery = kwargs.pop('centery', self.cmomy)
-        # plot ellipse at I = I_max / 2
-        sigmax = kwargs.pop('sigmax', _np.sqrt(2*_np.log(2)*self.cmomxx))
-        sigmay = kwargs.pop('sigmay', _np.sqrt(2*_np.log(2)*self.cmomyy))
         angle = kwargs.pop('angle', self.angle)
+        fwhmx = kwargs.pop('fwhmx', None)
+        fwhmy = kwargs.pop('fwhmy', None)
+        if fwhmx is None:
+            sigmax = kwargs.pop('sigmax', _np.sqrt(self.cmomxx))
+            fwhmx = FitGaussian.conv_sigma2fwhm(sigmax)
+        if fwhmy is None:
+            sigmay = kwargs.pop('sigmay', _np.sqrt(self.cmomyy))
+            fwhmy = FitGaussian.conv_sigma2fwhm(sigmay)
 
         fig, axes = Image2D_ROI.imshow_images(
             self.data, self.imagex, self.imagey, self.roix, self.roiy,
-            *args,
-            angle=angle,
-            centerx=centerx, centery=centery,
-            sigmax=sigmax, sigmay=sigmay,
-            **kwargs)
+            *args, angle=angle, centerx=centerx, centery=centery,
+            fwhmx=fwhmx, fwhmy=fwhmy, **kwargs)
         return fig, axes
 
     def __str__(self):
@@ -1216,30 +1226,12 @@ class Image2D_CMom(Image2D_ROI):
 
         # SVD decomposition of second moment matrix
         sigma = _np.array([[cmomxx, cmomxy], [cmomxy, cmomyy]])
-        u, s, *_ = _np.linalg.svd(sigma, hermitian=True)
+        _, s, vt = _np.linalg.svd(sigma, hermitian=True)
         sigma1, sigma2 = _np.sqrt(s)  # sigma1 is largest
-        axis1, _ = u  # get 1st normal axis (larger sigma)
-
-        # calc image angle [deg]
-        #   rotate normal axes until largest sigma axis
-        #   is closer to the X axis.
-        if abs(axis1[0]) > abs(axis1[1]):
-            # 1st normal axis is closer to X direction
-            if axis1[0] < 0:
-                # normal axes need -180-deg rotation
-                axis1 = -axis1[0], -axis1[1]
-            else:
-                # 1st normal axis is already closer to X direction
-                pass
-        else:
-            # 1st normal axis is closer to Y direction
-            if axis1[1] < 0:
-                # normal axes need +90-deg rotation
-                axis1 = -axis1[1], -axis1[0]
-            else:
-                # normal axes need -90-deg rotation
-                axis1 = +axis1[1], -axis1[0]
-        angle = _np.arctan2(axis1[1], axis1[0]) * 180 / _np.pi
+        axis1, _ = vt  # get normal axis corresponding to larger sigma
+        if axis1[0] < 0:
+            axis1 *= -1
+        angle = - _np.arctan2(axis1[1], axis1[0]) * 180 / _np.pi
 
         return angle, sigma1, sigma2
 
@@ -1482,9 +1474,7 @@ class Image2D_Fit(Image2D):
         """."""
         return Image2D_ROI.imshow_images(
             self.data, self.fitx, self.fity, self.fitx.roi, self.fity.roi,
-            angle=self.angle,
-            fig=fig, axes=axes,
-            cropx = cropx, cropy = cropy,
+            angle=self.angle, fig=fig, axes=axes, cropx = cropx, cropy = cropy,
             color_ellip=color_ellip, color_roi=color_roi,
             color_axes=color_axes)
 
