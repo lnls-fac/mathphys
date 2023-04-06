@@ -1211,23 +1211,32 @@ class Image2D_CMom(Image2D_ROI):
         #   92.3 µs ± 704 ns per loop
         #   (mean ± std. dev. of 7 runs, 10000 loops each)
 
-        # SVD decomposition of secong moment matrix
+        # SVD decomposition of second moment matrix
         sigma = _np.array([[cmomxx, cmomxy], [cmomxy, cmomyy]])
         u, s, *_ = _np.linalg.svd(sigma, hermitian=True)
-        sigma1_, sigma2_ = _np.sqrt(s)
+        sigma1, sigma2 = _np.sqrt(s)  # sigma1 is largest
+        axis1, _ = u  # get 1st normal axis (larger sigma)
 
-        # find which of the two orthogonal direction to take
-        v1_, v2_ = u
-        vcross = _np.cross(v1_, v2_)
-        if vcross > 0:
-            v1, _ = v1_, v2_
-            sigma1, sigma2 = sigma1_, sigma2_
+        # calc image angle [deg]
+        #   rotate normal axes until largest sigma axis
+        #   is closer to the X axis.
+        if abs(axis1[0]) > abs(axis1[1]):
+            # 1st normal axis is closer to X direction
+            if axis1[0] < 0:
+                # normal axes need -180-deg rotation
+                axis1 = -axis1[0], -axis1[1]
+            else:
+                # 1st normal axis is already closer to X direction
+                pass
         else:
-            v1, _ = v2_, v1_
-            sigma1, sigma2 = sigma2_, sigma1_
-
-        # calc angle [deg]
-        angle = _np.arctan(v1[1] / v1[0]) * 180 / _np.pi
+            # 1st normal axis is closer to Y direction
+            if axis1[1] < 0:
+                # normal axes need +90-deg rotation
+                axis1 = -axis1[1], -axis1[0]
+            else:
+                # normal axes need -90-deg rotation
+                axis1 = +axis1[1], -axis1[0]
+        angle = _np.arctan2(axis1[1], axis1[0]) * 180 / _np.pi
 
         return angle, sigma1, sigma2
 
