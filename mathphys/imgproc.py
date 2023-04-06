@@ -33,6 +33,7 @@ class FitGaussian:
     """."""
 
     SATURATION_8BITS = 2**8-1
+    SATURATION_12BITS = 2**12-1
     SATURATION_16BITS = 2**16-1
 
     @staticmethod
@@ -229,6 +230,11 @@ class FitGaussianScipy(FitGaussian):
         self._maxfev = maxfev
 
     @property
+    def max_func_evals(self):
+        """Return maximum number of evaluations allowed in curve_fit."""
+        return self._maxfev
+
+    @property
     def use_jacobian(self):
         """."""
         return self._use_jacobian
@@ -288,13 +294,12 @@ class FitGaussianScipy(FitGaussian):
 class Image1D:
     """1D-Images."""
 
-    SATURATION_8BITS = FitGaussian.SATURATION_8BITS
-
-    def __init__(self, data, saturation_threshold=SATURATION_8BITS):
+    def __init__(self, data, saturation_threshold=None):
         """."""
         # benchmark for size=1280
-        #   6.83 µs ± 71.9 ns per loop
-        #   (mean ± std. dev. of 7 runs, 100000 loops each)
+        #   968 ns ± 7.72 ns per loop
+        #   (mean ± std. dev. of 7 runs, 1000000 loops each)
+
         self._data = None
         self._saturation_threshold = saturation_threshold
         self._is_saturated = None
@@ -384,12 +389,11 @@ class Image1D:
         return res
 
     @staticmethod
-    def get_roi(data, roi):
+    def update_roi(data, roi):
         """."""
         if roi is None:
             roi = [0, data.size]
-        roi[0] = max(roi[0], 0)
-        roi[1] = min(roi[1], data.size)
+        roi = [max(roi[0], 0), min(roi[1], data.size)]
         return roi
 
     # --- private methods ---
@@ -408,15 +412,16 @@ class Image2D:
     """2D-Images."""
 
     SATURATION_8BITS = FitGaussian.SATURATION_8BITS
-    INTENSITY_THRESHOLD = 10
+    SATURATION_12BITS = FitGaussian.SATURATION_12BITS
+    SATURATION_16BITS = FitGaussian.SATURATION_16BITS
 
     def __init__(
             self, data,
             saturation_threshold=SATURATION_8BITS,
-            intensity_threshold=INTENSITY_THRESHOLD):
+            intensity_threshold=0):
         """."""
         # benchmark for sizes=(1024, 1280):
-        #   558 µs ± 121 µs per loop
+        #   874 µs ± 11.9 µs per loop
         #   (mean ± std. dev. of 7 runs, 1000 loops each)
 
         self._data = None
@@ -482,8 +487,9 @@ class Image2D:
     def intensity_min(self):
         """Return image min intensity value."""
         # benchmark for sizes=(1024, 1280):
-        #   598 µs ± 90.9 µs per loop
+        #   383 µs ± 14.7 µs per loop
         #   (mean ± std. dev. of 7 runs, 1000 loops each)
+
         return _np.min(self.data)
 
     @property
@@ -495,8 +501,9 @@ class Image2D:
     def intensity_sum(self):
         """Return image sum intensity value."""
         # benchmark for sizes=(1024, 1280):
-        # 403 µs ± 17.7 µs per loop
-        # (mean ± std. dev. of 7 runs, 1000 loops each)
+        #   348 µs ± 3.82 µs per loop
+        #   (mean ± std. dev. of 7 runs, 1000 loops each)
+
         return _np.sum(self.data)
 
     @property
@@ -511,7 +518,7 @@ class Image2D:
 
     def imshow(self, fig=None, axes=None, cropx=None, cropy=None):
         """."""
-        cropx, cropy = Image2D.get_roi(self.data, cropx, cropy)
+        cropx, cropy = Image2D.update_roi(self.data, cropx, cropy)
 
         if None in (fig, axes):
             fig, axes = _plt.subplots()
@@ -542,16 +549,14 @@ class Image2D:
         return res
 
     @staticmethod
-    def get_roi(data, roix, roiy):
+    def update_roi(data, roix, roiy):
         """."""
         if roiy is None:
             roiy = [0, data.shape[0]]
         if roix is None:
             roix = [0, data.shape[1]]
-        roiy[0] = max(roiy[0], 0)
-        roix[0] = max(roix[0], 0)
-        roiy[1] = min(roiy[1], data.shape[0])
-        roix[1] = min(roix[1], data.shape[1])
+        roiy = [max(roiy[0], 0), min(roiy[1], data.shape[0])]
+        roix = [max(roix[0], 0), min(roix[1], data.shape[1])]
         return roix, roiy
 
     @staticmethod
@@ -584,6 +589,7 @@ class Image1D_ROI(Image1D):
         # benchmark for size=1280
         #   28.8 µs ± 194 ns per loop
         #   (mean ± std. dev. of 7 runs, 10000 loops each)
+
         self._roi = None
         self._roi_indcs = None
         self._roi_proj = None
@@ -625,7 +631,7 @@ class Image1D_ROI(Image1D):
     def update_roi_with_fwhm(self, fwhm_factor=2.0):
         """."""
         roi = Image1D_ROI.calc_roi_with_fwhm(self, fwhm_factor)
-        self.roi = roi  # triggers recalc of center, fwhm
+        self.roi = roi  # triggers recalc of center and fwhm
 
     def imshow(
             self, fig=None, axes=None, crop = None,
@@ -681,6 +687,7 @@ class Image1D_ROI(Image1D):
         # benchmark for size=1280:
         #   29.3 µs ± 390 ns per loop
         #   (mean ± std. dev. of 7 runs, 10000 loops each)
+
         data = Image1D_ROI._trim_image(self.data, self.roi)
         return Image1D_ROI(data=data)
 
@@ -696,7 +703,7 @@ class Image1D_ROI(Image1D):
     def _update_image_roi(self, roi):
         """."""
         # get roi, indices and slice data
-        roi = Image1D_ROI.get_roi(self._data, roi)
+        roi = Image1D_ROI.update_roi(self._data, roi)
         indcs = Image1D_ROI._calc_indcs(self._data, roi)
         proj = self.data[slice(*roi)]
 
@@ -729,19 +736,18 @@ class Image1D_ROI(Image1D):
         roi1 = int(image.roi_center - fwhm_factor * (image.roi_fwhm/2))
         roi2 = int(image.roi_center + fwhm_factor * (image.roi_fwhm/2))
         roi = [roi1, roi2]
-        return cls.get_roi(image.data, roi)
+        return cls.update_roi(image.data, roi)
 
 
 class Image2D_ROI(Image2D):
     """2D-Image ROI."""
-
-    _SMALL_ANGLE_DEV = 1e-8
 
     def __init__(self, data, roix=None, roiy=None, *args, **kwargs):
         """."""
         # benchmark for sizes=(1024, 1280)
         #   1.71 ms ± 203 µs per loop
         #   (mean ± std. dev. of 7 runs, 1000 loops each)
+
         self._imagey = None
         self._imagex = None
         super().__init__(data=data, *args, **kwargs)
@@ -765,7 +771,7 @@ class Image2D_ROI(Image2D):
     @roiy.setter
     def roiy(self, value):
         """."""
-        self._update_image_roi(self._roix, value)
+        self._update_image_roi(self.imagex.roi, value)
 
     @property
     def roix(self):
@@ -775,7 +781,7 @@ class Image2D_ROI(Image2D):
     @roix.setter
     def roix(self, value):
         """."""
-        self._update_image_roi(value, self._roiy)
+        self._update_image_roi(value, self.imagey.roi)
 
     @property
     def roi(self):
@@ -827,8 +833,8 @@ class Image2D_ROI(Image2D):
     def create_trimmed(self):
         """Create a new image timmed to roi."""
         # benchmark for sizes=(1024, 1280), roi all
-        #   187 µs ± 2.56 µs per loop
-        #   (mean ± std. dev. of 7 runs, 10000 loops each)
+        #   231 µs ± 3.65 µs per loop
+        #   (mean ± std. dev. of 7 runs, 1000 loops each)
 
         data = Image2D_ROI._trim_image(self.data, self.roix, self.roiy)
         return Image2D_ROI(data=data)
@@ -845,7 +851,7 @@ class Image2D_ROI(Image2D):
 
     def _update_image_roi(self, roix, roiy):
         """."""
-        roix, roiy = Image2D.get_roi(self.data, roix, roiy)
+        roix, roiy = Image2D.update_roi(self.data, roix, roiy)
         data = self.project_image(self._data, 0)
         self._imagey = Image1D_ROI(data=data, roi=roiy)
         data = self.project_image(self._data, 1)
@@ -909,7 +915,7 @@ class Image2D_ROI(Image2D):
         sigmax = sigmax if sigmax is not None else imagex.roi_fwhm
         sigmay = sigmay if sigmay is not None else imagey.roi_fwhm
 
-        cropx, cropy = cls.get_roi(data, cropx, cropy)
+        cropx, cropy = cls.update_roi(data, cropx, cropy)
         x0, y0 = cropx[0], cropy[0]
         center = centerx - x0, centery - y0
 
@@ -962,11 +968,11 @@ class Image2D_ROI(Image2D):
         angle *= _np.pi / 180
 
         # check if angle corresponds to special cases n*pi or n*(pi/2) tilt.
-        cls._SMALL_ANGLE_DEV = 1e-8
+        _SMALL_ANGLE_DEV = 1e-8
         sina = _np.sin(-angle)
-        if abs(sina) < cls._SMALL_ANGLE_DEV:
+        if abs(sina) < _SMALL_ANGLE_DEV:
             return imagex.roi, [center[1], center[1]]
-        elif 1 - abs(sina) < cls._SMALL_ANGLE_DEV:
+        elif 1 - abs(sina) < _SMALL_ANGLE_DEV:
             return [center[0], center[0]], imagey.roi
         else:
             slope = _np.tan(-angle)
@@ -1001,6 +1007,13 @@ class Image2D_CMom(Image2D_ROI):
 
     def __init__(self, *args, **kwargs):
         """."""
+        # benchmark for sizes=(1024, 1280)
+        #   37.7 ms ± 701 µs per loop
+        #   (mean ± std. dev. of 7 runs, 10 loops each)
+        # benchmark for sizes=(1024, 1280), roix=[400, 800], roiy=[400, 600]
+        #   3.48 ms ± 92.8 µs per loop
+        #   (mean ± std. dev. of 7 runs, 100 loops each)
+
         self._roix_meshgrid = None
         self._roiy_meshgrid = None
         self._cmomx = None
@@ -1008,8 +1021,12 @@ class Image2D_CMom(Image2D_ROI):
         self._cmomyy = None
         self._cmomxy = None
         self._cmomxx = None
+        self._angle = None
+        self._sigma1 = None
+        self._sigma2 = None
+        self._sigmax = None
+        self._sigmay = None
         super().__init__(*args, **kwargs)
-        self._update_image_roi()
 
     @property
     def roix_meshgrid(self):
@@ -1049,20 +1066,43 @@ class Image2D_CMom(Image2D_ROI):
     @property
     def angle(self):
         """Return tilt angle [deg]"""
-        if self.cmomxx - self.cmomyy < self._SMALL_ANGLE_DEV:
-            return 0
-        angle = \
-            -0.5 * _np.arctan(2*self.cmomxy/(self.cmomxx - self.cmomyy))
-        return angle * 180 / _np.pi
+        return self._angle
+
+    @property
+    def sigma1(self):
+        """."""
+        return self._sigma1
+
+    @property
+    def sigma2(self):
+        """."""
+        return self._sigma2
+
+    @property
+    def sigmax(self):
+        """."""
+        return self._sigmax
+
+    @property
+    def sigmay(self):
+        """."""
+        return self._sigmay
 
     def calc_central_moment(self, order_x, order_y):
         """."""
-        # 9.98 ms ± 19.1 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
-        mgx = self.roix_meshgrid - self._cmomx
-        mgy = self.roiy_meshgrid - self._cmomy
-        sumpq = _np.sum(mgx**order_x * mgy**order_y * self.data)
-        mompq = sumpq / self.data.size
-        return mompq
+        # benchmark for sizes=(1024, 1280)
+        # 10.7 ms ± 87.4 µs per loop
+        #   (mean ± std. dev. of 7 runs, 100 loops each)
+        # benchmark for sizes=(1024, 1280), roix=[400, 800], roiy=[400, 600]
+        #   223 µs ± 1.72 µs per loop
+        #   (mean ± std. dev. of 7 runs, 1000 loops each)
+
+        return self.calc_cmom(
+            self.data,
+            roix_meshgrid=self.roix_meshgrid, roiy_meshgrid=self.roiy_meshgrid,
+            roix=self.imagex.roi, roiy=self.imagey.roi,
+            cmomx=self._cmomx, cmomy=self._cmomy,
+            order_x=order_x, order_y=order_y)
 
     def imshow(self, *args, **kwargs):
         """."""
@@ -1091,26 +1131,115 @@ class Image2D_CMom(Image2D_ROI):
         res += f'\ncmomxx          : {self.cmomxx}'
         res += f'\ncmomyy          : {self.cmomyy}'
         res += f'\ncmomxy          : {self.cmomxy}'
+        res += f'\nsigma1          : {self.sigma1}'
+        res += f'\nsigma2          : {self.sigma2}'
+        res += f'\nangle           : {self.angle}'
+        res += f'\nsigmax          : {self.sigmax}'
+        res += f'\nsigmax          : {self.sigmay}'
         return res
 
     def _update_image_roi(self, roix=None, roiy=None):
         """."""
-        # 30.8 ms ± 200 µs per loop (mean ± std. dev. of 7 runs, 10 loops each)
         super()._update_image_roi(roix=roix, roiy=roiy)
 
         self._roix_meshgrid, self._roiy_meshgrid = \
-            _np.meshgrid(self.imagex.roi_indcs, self.imagey.roi_indcs)
-        self._cmomx, self._cmomy = self._calc_cmom1()
+            self.calc_meshgrids(self.imagex, self.imagey)
+        self._cmomx, self._cmomy = self.calc_cmom1(self.imagex, self.imagey)
         self._cmomxx = self.calc_central_moment(2, 0)
         self._cmomxy = self.calc_central_moment(1, 1)
         self._cmomyy = self.calc_central_moment(0, 2)
 
-    def _calc_cmom1(self):
-        #17.6 µs ± 108 ns per loop (mean ± std. dev. of 7 runs, 100000 loops each)
-        cmom0 = _np.sum(self.imagex.roi_proj)  # same as for y
-        cmomx = _np.sum(self.imagex.roi_proj * self.imagex.roi_indcs) / cmom0
-        cmomy = _np.sum(self.imagey.roi_proj * self.imagey.roi_indcs) / cmom0
+        # calc angle and sigmas
+        angle, sigma1, sigma2 = self.calc_angle_normal_sigmas(
+            self.cmomxx, self.cmomyy, self.cmomxy)
+
+        # calc sigmas in rotated (original) axes
+        sigmax, sigmay = self.calc_rotated_sigma(angle, sigma1, sigma2)
+
+        # calc angle [deg] and sigmas
+        self._angle = angle
+        self._sigma1 = sigma1
+        self._sigma2 = sigma2
+        self._sigmax = sigmax
+        self._sigmay = sigmay
+
+    @staticmethod
+    def calc_meshgrids(imagex : Image1D_ROI, imagey : Image2D_ROI):
+        """."""
+        roix_meshgrid, roiy_meshgrid = \
+            _np.meshgrid(imagex.roi_indcs, imagey.roi_indcs)
+        return roix_meshgrid, roiy_meshgrid
+
+    @staticmethod
+    def calc_cmom1(imagex : Image1D_ROI, imagey : Image2D_ROI):
+        """."""
+        # benchmark for sizes=(1024, 1280)
+        #   18.4 µs ± 102 ns per loop
+        #   (mean ± std. dev. of 7 runs, 100000 loops each)
+        # benchmark for sizes=(1024, 1280)
+        #   15.5 µs ± 131 ns per loop
+        #   (mean ± std. dev. of 7 runs, 100000 loops each)
+
+        cmom0 = _np.sum(imagex.roi_proj)  # same as for imagey
+        cmomx = _np.sum(imagex.roi_proj * imagex.roi_indcs) / cmom0
+        cmomy = _np.sum(imagey.roi_proj * imagey.roi_indcs) / cmom0
         return cmomx, cmomy
+
+    @staticmethod
+    def calc_cmom(
+            data, roix_meshgrid, roiy_meshgrid, roix, roiy,
+            cmomx, cmomy, order_x, order_y):
+        """."""
+        # benchmark for sizes=(1024, 1280)
+        #   10.6 ms ± 49.3 µs per loop
+        #   (mean ± std. dev. of 7 runs, 100 loops each)
+        # benchmark for sizes=(1024, 1280), roix=[400, 800], roiy=[400, 600]
+        #   223 µs ± 1.66 µs per loop
+        #   (mean ± std. dev. of 7 runs, 1000 loops each)
+
+        mgx = roix_meshgrid - cmomx
+        mgy = roiy_meshgrid - cmomy
+        data = data[slice(*roiy), slice(*roix)]
+        sumpq = _np.sum(mgx**order_x * mgy**order_y * data)
+        mompq = sumpq / _np.sum(data)
+        return mompq
+
+    @staticmethod
+    def calc_angle_normal_sigmas(cmomxx, cmomyy, cmomxy):
+        """Return angle [deg] and normal mode sigmas from second moments."""
+        # benchmark
+        #   92.3 µs ± 704 ns per loop
+        #   (mean ± std. dev. of 7 runs, 10000 loops each)
+
+        # SVD decomposition of secong moment matrix
+        sigma = _np.array([[cmomxx, cmomxy], [cmomxy, cmomyy]])
+        u, s, *_ = _np.linalg.svd(sigma, hermitian=True)
+        sigma1_, sigma2_ = _np.sqrt(s)
+
+        # find which of the two orthogonal direction to take
+        v1_, v2_ = u
+        vcross = _np.cross(v1_, v2_)
+        if vcross > 0:
+            v1, _ = v1_, v2_
+            sigma1, sigma2 = sigma1_, sigma2_
+        else:
+            v1, _ = v2_, v1_
+            sigma1, sigma2 = sigma2_, sigma1_
+
+        # calc angle [deg]
+        angle = _np.arctan(v1[1] / v1[0]) * 180 / _np.pi
+
+        return angle, sigma1, sigma2
+
+    @staticmethod
+    def calc_rotated_sigma(angle, sigma1, sigma2):
+        """Convert normal sigmas to sigmas in rotated axes give angle [deg]."""
+        angle *= _np.pi / 180
+        cosa2, sina2 = _np.cos(angle)**2, _np.sin(angle)**2
+        sigma1_2, sigma2_2 = sigma1**2, sigma2**2
+        sigmax = _np.sqrt(cosa2 * sigma1_2 + sina2 * sigma2_2)
+        sigmay = _np.sqrt(sina2 * sigma1_2 + cosa2 * sigma2_2)
+        return sigmax, sigmay
 
 
 class Image1D_Fit(Image1D_ROI):
@@ -1121,6 +1250,7 @@ class Image1D_Fit(Image1D_ROI):
         # benchmark for size=1280
         #   586 µs ± 1.56 µs per loop
         #   (mean ± std. dev. of 7 runs, 1000 loops each)
+
         self._roi_mean = None
         self._roi_sigma = None
         self._roi_amp = None
@@ -1227,11 +1357,17 @@ class Image2D_Fit(Image2D):
     def __init__(self, roix=None, roiy=None, fitgauss=None, *args, **kwargs):
         """."""
         # benchmark for sizes=(1024, 1280)
-        #   2.7 ms ± 23.2 µs per loop
+        #   21.2 ms ± 1.78 ms per loop
         #   (mean ± std. dev. of 7 runs, 100 loops each)
+        # benchmark for sizes=(1024, 1280), roix=[350, 849], roiy=[399, 600]
+        #   5.49 ms ± 48.8 µs per loop
+        #   (mean ± std. dev. of 7 runs, 100 loops each)
+
         self._fitx = None
         self._fity = None
-        self._angle = 0
+        self._angle = None
+        self._sigma1 = None
+        self._sigma2 = None
         self._fitgauss = fitgauss or FitGaussian
         super().__init__(*args, **kwargs)
         self._update_image_fit(roix=roix, roiy=roiy)
@@ -1278,65 +1414,54 @@ class Image2D_Fit(Image2D):
 
     @property
     def angle(self):
-        """Image tilt angles [deg]."""
+        """Return tilt angle [deg]"""
         return self._angle
+
+    @property
+    def sigma1(self):
+        """."""
+        return self._sigma1
+
+    @property
+    def sigma2(self):
+        """."""
+        return self._sigma2
 
     def update_roi_with_fwhm(self, fwhmx_factor=2, fwhmy_factor=2):
         """."""
         self.fitx.update_roi_with_fwhm(fwhm_factor=fwhmx_factor)
         self.fity.update_roi_with_fwhm(fwhm_factor=fwhmy_factor)
 
-    def calc_angle_with_roi(self):
-        """Calculate image tilt angle within ROI.
+    def calc_angle_normal_sigmas(self):
+        """Calculate image tilt angle [deg] and normal axes sigmas."""
+        # benchmark for sizes=(1024, 1280)
+        #   12.3 ms ± 120 µs per loop
+        #   (mean ± std. dev. of 7 runs, 100 loops each)
+        # benchmark for sizes=(1024, 1280), roix=[350, 849], roiy=[399, 600]
+        #   823 µs ± 16.7 µs per loop
+        #   (mean ± std. dev. of 7 runs, 1000 loops each)
 
-        A linear y = ax + b fit is performed over the image and the tilt angle
-        is taken from the arctan of the angular coefficient. Each image point
-        is weighted by the fourth power of the image intensity.
-        """
-        roix, roiy = self.fitx.roi, self.fity.roi
-        indcsx, indcsy = self.fitx.roi_indcs, self.fity.roi_indcs
-        mx, my = _np.meshgrid(indcsx, indcsy)
-        data = self.data[slice(*roiy), slice(*roix)]
-        data = data * data
-        data *= data
-        mxd = mx * data
-        a11 = _np.sum(data)
-        a12 = _np.sum(mxd)
-        a22 = _np.sum(mx * mxd)
-        b1 = _np.sum(my * data)
-        b2 = _np.sum(my * mxd)
-        a = _np.array([[a11, a12], [a12, a22]])
-        b = _np.array([b1, b2])
-        v = _np.linalg.solve(a, b)
-        angle = _np.arctan(v[1]) * 180 / _np.pi
-        angle *= -1  # sign change due to the dir of vertical pixel increase
-        return angle
+        roix_meshgrid, roiy_meshgrid = \
+            Image2D_CMom.calc_meshgrids(self.fitx, self.fity)
+        cmomx, cmomy = Image2D_CMom.calc_cmom1(self.fitx, self.fity)
 
-    def calc_mode_sigmas(self):
-        """."""
-        # method:
-        #
-        # [x, y] = R(-angle) [u1, u2]
-        #
-        # R(-angle) = [[C, S], [-S, C]]
-        #
-        # sigmax² = C² sigma1² + S² sigma2²
-        # sigmay² = S² sigma1² + C² sigma2²
-        angle = -self.angle * _np.pi / 180
-        func, funs = _np.cos(angle), _np.sin(angle)
-        det = func**2 - funs**2
-        if abs(det) < 1e-6:
-            return _np.nan, _np.nan
+        # calc central moments
+        args = (
+            self.data,
+            roix_meshgrid, roiy_meshgrid,
+            self.fitx.roi, self.fity.roi,
+            cmomx, cmomy)
+        cmomxy = Image2D_CMom.calc_cmom(*args, order_x=1, order_y=1)
+        # cmomxx = Image2D_CMom.calc_cmom(*args, order_x=2, order_y=0)
+        # cmomyy = Image2D_CMom.calc_cmom(*args, order_x=0, order_y=2)
+        cmomxx = self.fitx.roi_sigma ** 2  # from fit instead of from cmom!
+        cmomyy = self.fity.roi_sigma ** 2  # from fit instead of from cmom!
 
-        sigmax = self.fitx.roi_sigma
-        sigmay = self.fity.roi_sigma
-        sigma1sqr = 1/det * (func**2 * sigmax**2 - funs**2 * sigmay**2)
-        sigma2sqr = 1/det * (-funs**2 * sigmax**2 + func**2 * sigmay**2)
+        # calc angle and sigmas
+        angle, sigma1, sigma2 = Image2D_CMom.calc_angle_normal_sigmas(
+            cmomxx, cmomyy, cmomxy)
 
-        sigma1 = _np.sqrt(sigma1sqr) if sigma1sqr > 0 else _np.nan
-        sigma2 = _np.sqrt(sigma2sqr) if sigma2sqr > 0 else _np.nan
-
-        return sigma1, sigma2
+        return angle, sigma1, sigma2
 
     def imshow(
             self, fig=None, axes=None,
@@ -1404,10 +1529,19 @@ class Image2D_Fit(Image2D):
 
         return res
 
+    @staticmethod
+    def calc_roi_with_fwhm(image, fwhmx_factor, fwhmy_factor):
+        """."""
+        roix = Image1D_Fit.calc_roi_with_fwhm(
+            image.fitx, fwhm_factor=fwhmx_factor)
+        roiy = Image1D_Fit.calc_roi_with_fwhm(
+            image.fity, fwhm_factor=fwhmy_factor)
+        return roix, roiy
+
     def _update_image_fit(self, roix=None, roiy=None):
         """."""
         # fit projections
-        roix, roiy = Image2D.get_roi(self.data, roix, roiy)
+        roix, roiy = Image2D.update_roi(self.data, roix, roiy)
         data = self.project_image(self._data, 0)
         self._fity = Image1D_Fit(
             data=data, roi=roiy, fitgauss=self._fitgauss)
@@ -1418,4 +1552,8 @@ class Image2D_Fit(Image2D):
         self._fitx.set_saturation_flag(self.is_saturated)
 
         # fit angle
-        self._angle = self.calc_angle_with_roi()
+        # self._angle = self.calc_angle_with_roi()
+        angle, sigma1, sigma2 = self.calc_angle_normal_sigmas()
+        self._angle = angle
+        self._sigma1 = sigma1
+        self._sigma2 = sigma2
