@@ -35,7 +35,7 @@ class FitGaussian:
     SATURATION_8BITS = 2**8-1
     SATURATION_12BITS = 2**12-1
     SATURATION_16BITS = 2**16-1
-    SIGMA2FWHM = 2 * _np.sqrt(2*_np.log(2))
+    _SIGMA2FWHM = 2 * _np.sqrt(2*_np.log(2))
 
     @staticmethod
     def gaussian(indcs, sigma, mean, amplitude, offset):
@@ -199,12 +199,12 @@ class FitGaussian:
     @staticmethod
     def conv_sigma2fwhm(sigma):
         """."""
-        return sigma * FitGaussian.SIGMA2FWHM
+        return sigma * FitGaussian._SIGMA2FWHM
 
     @staticmethod
     def conv_fwhm2sigma2(fwhm):
         """."""
-        return fwhm / FitGaussian.SIGMA2FWHM
+        return fwhm / FitGaussian._SIGMA2FWHM
 
     @staticmethod
     def _process_args(
@@ -288,7 +288,7 @@ class FitGaussianScipy(FitGaussian):
     def calc_fit(self, image, proj, indcs, center):
         """."""
         # calc param0
-        sigma = max(1, image.roi_fwhm / FitGaussian.SIGMA2FWHM)
+        sigma = max(1, image.roi_fwhm / 2.35)
         mean = image.roi_center
         amplitude = image.intensity_max - image.intensity_min
         offset = image.intensity_min
@@ -398,8 +398,8 @@ class Image1D:
         res += f'\nintensity_max   : {self.intensity_max}'
         res += f'\nintensity_avg   : {self.intensity_sum/self.size}'
         res += f'\nintensity_sum   : {self.intensity_sum}'
-        res += f'\nsaturation_thr  : {self.saturation_threshold}'
-        res += f'\nis_saturated    : {self.is_saturated}'
+        res += f'\nsaturation_val  : {self.saturation_threshold}'
+        res += f'\nsaturated       : {self.is_saturated}'
         return res
 
     @staticmethod
@@ -416,7 +416,7 @@ class Image1D:
         """."""
         self._data = _np.asarray(data)
         if self.saturation_threshold is None:
-            self._is_saturated = None
+            self._is_saturated = False
         else:
             self._is_saturated = \
                 _np.any(self.data >= self.saturation_threshold)
@@ -558,10 +558,8 @@ class Image2D:
         res += f'\nintensity_max   : {self.intensity_max}'
         res += f'\nintensity_avg   : {self.intensity_sum/self.size}'
         res += f'\nintensity_sum   : {self.intensity_sum}'
-        res += f'\nintensity_thr   : {self.intensity_threshold}'
-        res += f'\nis_with_image   : {self.is_with_image}'
-        res += f'\nsaturation_thr  : {self.saturation_threshold}'
-        res += f'\nis_saturated    : {self.is_saturated}'
+        res += f'\nsaturation_val  : {self.saturation_threshold}'
+        res += f'\nsaturated       : {self.is_saturated}'
         return res
 
     @staticmethod
@@ -1156,7 +1154,6 @@ class Image2D_CMom(Image2D_ROI):
     def _update_image_roi(self, roix=None, roiy=None):
         """."""
         super()._update_image_roi(roix=roix, roiy=roiy)
-
         self._roix_meshgrid, self._roiy_meshgrid = \
             self.calc_meshgrids(self.imagex, self.imagey)
         self._cmomx, self._cmomy = self.calc_cmom1(self.imagex, self.imagey)
@@ -1186,7 +1183,8 @@ class Image2D_CMom(Image2D_ROI):
         return roix_meshgrid, roiy_meshgrid
 
     @staticmethod
-    def calc_cmom1(imagex : Image1D_ROI, imagey : Image1D_ROI):
+    def calc_cmom1(
+            imagex : Image1D_ROI, imagey : Image1D_ROI, intensity_order=1):
         """."""
         # benchmark for sizes=(1024, 1280)
         #   18.4 µs ± 102 ns per loop
@@ -1195,15 +1193,25 @@ class Image2D_CMom(Image2D_ROI):
         #   15.5 µs ± 131 ns per loop
         #   (mean ± std. dev. of 7 runs, 100000 loops each)
 
-        cmom0 = _np.sum(imagex.roi_proj)  # same as for imagey
-        cmomx = _np.sum(imagex.roi_proj * imagex.roi_indcs) / cmom0
-        cmomy = _np.sum(imagey.roi_proj * imagey.roi_indcs) / cmom0
+        datax, datay = imagex.roi_proj, imagey.roi_proj
+        if intensity_order > 1:
+            datax_n, datay_n = datax.copy(), datay.copy()
+            for _ in range(intensity_order-1):
+                datax_n = datax_n * datax
+                datay_n = datay_n * datay
+            cmom0x = _np.sum(datax_n)
+            cmom0y = _np.sum(datay_n)
+        else:
+            datax_n, datay_n = datax, datay
+            cmom0x = cmom0y = _np.sum(datax_n)
+        cmomx = _np.sum(datax_n * imagex.roi_indcs) / cmom0x
+        cmomy = _np.sum(datay_n * imagey.roi_indcs) / cmom0y
         return cmomx, cmomy
 
     @staticmethod
     def calc_cmom(
             data, roix_meshgrid, roiy_meshgrid, roix, roiy,
-            cmomx, cmomy, order_x, order_y):
+            cmomx, cmomy, order_x, order_y, intensity_threshold=0.01):
         """."""
         # benchmark for sizes=(1024, 1280)
         #   10.6 ms ± 49.3 µs per loop
@@ -1211,12 +1219,14 @@ class Image2D_CMom(Image2D_ROI):
         # benchmark for sizes=(1024, 1280), roix=[400, 800], roiy=[400, 600]
         #   223 µs ± 1.66 µs per loop
         #   (mean ± std. dev. of 7 runs, 1000 loops each)
-
-        mgx = roix_meshgrid - cmomx
-        mgy = roiy_meshgrid - cmomy
         data = data[slice(*roiy), slice(*roix)]
-        sumpq = _np.sum(mgx**order_x * mgy**order_y * data)
-        mompq = sumpq / _np.sum(data)
+        # sel = data > intensity_threshold * data.max()
+        mgx, mgy = roix_meshgrid - cmomx, roiy_meshgrid - cmomy
+        # data = data[sel]
+        # mgx, mgy = mgx[sel], mgy[sel]
+        # data = data / _np.sum(data)
+        mompq = _np.sum(mgx**order_x * mgy**order_y * data)
+        mompq /= _np.sum(data)
         return mompq
 
     @staticmethod
@@ -1227,13 +1237,20 @@ class Image2D_CMom(Image2D_ROI):
         #   (mean ± std. dev. of 7 runs, 10000 loops each)
 
         # SVD decomposition of second moment matrix
+        # print('cmomxx', cmomxx)
+        # print('cmomyy', cmomyy)
+        # print('cmomxy', cmomxy)
         sigma = _np.array([[cmomxx, cmomxy], [cmomxy, cmomyy]])
-        _, s, vt = _np.linalg.svd(sigma, hermitian=True)
+        u, s, vt = _np.linalg.svd(sigma, hermitian=True)
         sigma1, sigma2 = _np.sqrt(s)  # sigma1 is largest
-        axis1, _ = vt  # get normal axis corresponding to larger sigma
+        # print('u', u)
+        # print('vt', vt)
+        axis1, axis2 = vt.T
+        axis1, axis2 = u.T
         if axis1[0] < 0:
             axis1 *= -1
-        angle = - _np.arctan2(axis1[1], axis1[0]) * 180 / _np.pi
+        # print('axis1', axis1)
+        angle = _np.arctan2(axis1[1], axis1[0]) * 180 / _np.pi
 
         return angle, sigma1, sigma2
 
@@ -1449,7 +1466,8 @@ class Image2D_Fit(Image2D):
 
         roix_meshgrid, roiy_meshgrid = \
             Image2D_CMom.calc_meshgrids(self.fitx, self.fity)
-        cmomx, cmomy = Image2D_CMom.calc_cmom1(self.fitx, self.fity)
+        # cmomx, cmomy = Image2D_CMom.calc_cmom1(self.fitx, self.fity, intensity_order=4)
+        cmomx, cmomy = self.fitx.roi_mean, self.fity.roi_mean
 
         # calc central moments
         args = (
@@ -1463,11 +1481,70 @@ class Image2D_Fit(Image2D):
         cmomxx = self.fitx.roi_sigma ** 2  # from fit instead of from cmom!
         cmomyy = self.fity.roi_sigma ** 2  # from fit instead of from cmom!
 
+        # print('sigmax', self.fitx.roi_sigma)
+        # print('sigmay', self.fity.roi_sigma)
+        # print('roix', self.fitx.roi, 'cmomx', cmomx)
+        # print('roiy', self.fity.roi, 'cmomy', cmomy)
+        # print('roix_indcs', self.fitx.roi_indcs)
+        # print('roiy_indcs', self.fity.roi_indcs)
+        # print('cmomxx', cmomxx)
+        # print('cmomyy', cmomyy)
+        # print('cmomxy', cmomxy)
+
         # calc angle and sigmas
         angle, sigma1, sigma2 = Image2D_CMom.calc_angle_normal_sigmas(
             cmomxx, cmomyy, cmomxy)
 
         return angle, sigma1, sigma2
+
+    def calc_angle_with_roi(self):
+        """Calculate image tilt angle within ROI.
+        A linear y = ax + b fit is performed over the image and the tilt angle
+        is taken from the arctan of the angular coefficient. Each image point
+        is weighted by the fourth power of the image intensity.
+        """
+        roix, roiy = self.fitx.roi, self.fity.roi
+        indcsx, indcsy = self.fitx.roi_indcs, self.fity.roi_indcs
+        mx, my = _np.meshgrid(indcsx, indcsy)
+        data = self.data[slice(*roiy), slice(*roix)]
+        data = data * data
+        data *= data
+        mxd = mx * data
+        a11 = _np.sum(data)
+        a12 = _np.sum(mxd)
+        a22 = _np.sum(mx * mxd)
+        b1 = _np.sum(my * data)
+        b2 = _np.sum(my * mxd)
+        a = _np.array([[a11, a12], [a12, a22]])
+        b = _np.array([b1, b2])
+        v = _np.linalg.solve(a, b)
+        angle = _np.arctan(v[1]) * 180 / _np.pi
+        angle *= -1  # sign change due to the dir of vertical pixel increase
+        return angle
+
+    def calc_mode_sigmas(self):
+        """."""
+        # method:
+        #
+        # [x, y] = R(-angle) [u1, u2]
+        #
+        # R(-angle) = [[C, S], [-S, C]]
+        #
+        # sigmax² = C² sigma1² + S² sigma2²
+        # sigmay² = S² sigma1² + C² sigma2²
+        angle = -self.angle * _np.pi / 180
+        func, funs = _np.cos(angle), _np.sin(angle)
+        det = func**2 - funs**2
+        if abs(det) < 1e-6:
+            return _np.nan, _np.nan
+
+        sigmax = self.fitx.roi_sigma
+        sigmay = self.fity.roi_sigma
+        sigma1sqr = 1/det * (func**2 * sigmax**2 - funs**2 * sigmay**2)
+        sigma2sqr = 1/det * (-funs**2 * sigmax**2 + func**2 * sigmay**2)
+        sigma1 = _np.sqrt(sigma1sqr) if sigma1sqr > 0 else _np.nan
+        sigma2 = _np.sqrt(sigma2sqr) if sigma2sqr > 0 else _np.nan
+        return sigma1, sigma2
 
     def imshow(
             self, fig=None, axes=None,
@@ -1528,10 +1605,8 @@ class Image2D_Fit(Image2D):
         res += f'\nroi_mean        : {self.fity.roi_mean}'
         res += f'\nroi_sigma       : {self.fity.roi_sigma}'
         res += f'\nroi_fit_err     : {self.fity.roi_fit_error} %'
-        res += '\n--- fit2D ---'
+        res += '\n--- bigauss ---'
         res += f'\nangle           : {self.angle} deg.'
-        res += f'\nsigma1          : {self.sigma1}'
-        res += f'\nsigma2          : {self.sigma2}'
 
         return res
 
@@ -1546,25 +1621,20 @@ class Image2D_Fit(Image2D):
 
     def _update_image_fit(self, roix=None, roiy=None):
         """."""
-        if self.is_with_image:
-            # fit projections
-            roix, roiy = Image2D.update_roi(self.data, roix, roiy)
-            data = self.project_image(self._data, 0)
-            self._fity = Image1D_Fit(
-                data=data, roi=roiy, fitgauss=self._fitgauss)
-            self._fity.set_saturation_flag(self.is_saturated)
-            data = self.project_image(self._data, 1)
-            self._fitx = Image1D_Fit(
-                data=data, roi=roix, fitgauss=self._fitgauss)
-            self._fitx.set_saturation_flag(self.is_saturated)
+        # fit projections
+        roix, roiy = Image2D.update_roi(self.data, roix, roiy)
+        data = self.project_image(self._data, 0)
+        self._fity = Image1D_Fit(
+            data=data, roi=roiy, fitgauss=self._fitgauss)
+        self._fity.set_saturation_flag(self.is_saturated)
+        data = self.project_image(self._data, 1)
+        self._fitx = Image1D_Fit(
+            data=data, roi=roix, fitgauss=self._fitgauss)
+        self._fitx.set_saturation_flag(self.is_saturated)
 
-            # fit angle
-            # self._angle = self.calc_angle_with_roi()
-            angle, sigma1, sigma2 = self.calc_angle_normal_sigmas()
-            self._angle = angle
-            self._sigma1 = sigma1
-            self._sigma2 = sigma2
-        else:
-            self._angle = 0
-            self._sigma1 = 0
-            self._sigma2 = 0
+        # fit angle
+        self._angle = self.calc_angle_with_roi()
+        angle, sigma1, sigma2 = self.calc_angle_normal_sigmas()
+        # self._angle = angle
+        self._sigma1 = sigma1
+        self._sigma2 = sigma2
