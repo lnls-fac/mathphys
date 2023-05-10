@@ -87,7 +87,7 @@ class FitGaussian:
 
     @classmethod
     def generate_gaussian_2d(
-            cls, indcs, sigma=None, mean=None,
+            cls, indcs, sigma=None, mean=None, gradient=(0, 0),
             amplitude=0, offset=0,
             rand_amplitude=0, saturation_threshold=None,
             angle=0
@@ -146,6 +146,7 @@ class FitGaussian:
         m1 = cos_a * mx - sin_a * my
         m2 = sin_a * mx + cos_a * my
         data = offset + \
+            gradient[0] * (mx - x[0]) + gradient[1] * (my - y[0]) + \
             amplitude * _np.exp(-0.5 * ((m1/sigma1)**2 + (m2/sigma2)**2))
         if rand_amplitude:
             data += (_np.random.rand(*data.shape) - 0.5) * rand_amplitude
@@ -1243,6 +1244,7 @@ class Image2D_CMom(Image2D_ROI):
         sigma = _np.array([[cmomxx, cmomxy], [cmomxy, cmomyy]])
         u, s, vt = _np.linalg.svd(sigma, hermitian=True)
         sigma1, sigma2 = _np.sqrt(s)  # sigma1 is largest
+        # print('s', s)
         # print('u', u)
         # print('vt', vt)
         axis1, axis2 = vt.T
