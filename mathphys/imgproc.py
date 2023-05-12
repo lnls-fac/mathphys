@@ -1379,7 +1379,9 @@ class Image1D_Fit(Image1D_ROI):
 class Image2D_Fit(Image2D):
     """2D Image Fit."""
 
-    def __init__(self, roix=None, roiy=None, fitgauss=None, *args, **kwargs):
+    def __init__(
+            self, roix=None, roiy=None, fitgauss=None,
+            use_svd4theta=False, *args, **kwargs):
         """."""
         # benchmark for sizes=(1024, 1280)
         #   21.2 ms ± 1.78 ms per loop
@@ -1388,6 +1390,7 @@ class Image2D_Fit(Image2D):
         #   5.49 ms ± 48.8 µs per loop
         #   (mean ± std. dev. of 7 runs, 100 loops each)
 
+        self._use_svd4theta = use_svd4theta
         self._fitx = None
         self._fity = None
         self._angle = None
@@ -1396,6 +1399,16 @@ class Image2D_Fit(Image2D):
         self._fitgauss = fitgauss or FitGaussian
         super().__init__(*args, **kwargs)
         self._update_image_fit(roix=roix, roiy=roiy)
+
+    @property
+    def use_svd4theta(self):
+        """Return whether SVD of 2nd-moment matrix is used for theta calc."""
+        return self._use_svd4theta
+
+    @use_svd4theta.setter
+    def use_svd4theta(self, value):
+        """Set whether SVD of 2nd-moment matrix is used for theta calc."""
+        self._use_svd4theta = bool(value)
 
     @property
     def fity(self):
@@ -1635,8 +1648,8 @@ class Image2D_Fit(Image2D):
         self._fitx.set_saturation_flag(self.is_saturated)
 
         # fit angle
-        self._angle = self.calc_angle_with_roi()
-        angle, sigma1, sigma2 = self.calc_angle_normal_sigmas()
-        # self._angle = angle
-        self._sigma1 = sigma1
-        self._sigma2 = sigma2
+        angle, self._sigma1, self._sigma2 = self.calc_angle_normal_sigmas()
+        if self.use_svd4theta:
+            self._angle = angle
+        else:
+            self._angle = self.calc_angle_with_roi()
