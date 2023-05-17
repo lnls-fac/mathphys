@@ -525,7 +525,7 @@ class Image2D:
     def is_saturated(self):
         """Check if image is saturated."""
         return self._is_saturated
-    
+
     @property
     def is_with_image(self):
         """Check if image has signal."""
@@ -1252,7 +1252,7 @@ class Image2D_CMom(Image2D_ROI):
         if axis1[0] < 0:
             axis1 *= -1
         # print('axis1', axis1)
-        angle = _np.arctan2(axis1[1], axis1[0]) * 180 / _np.pi
+        angle = - _np.arctan2(axis1[1], axis1[0]) * 180 / _np.pi
 
         return angle, sigma1, sigma2
 
