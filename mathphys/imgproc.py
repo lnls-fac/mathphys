@@ -1607,7 +1607,6 @@ class Image2D_Fit(Image2D):
 
         return fig, axes
 
-
     def __str__(self):
         """."""
         res = super().__str__()
