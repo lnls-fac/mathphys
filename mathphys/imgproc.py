@@ -1281,7 +1281,7 @@ class Image1D_Fit(Image1D_ROI):
         self._roi_amp = None
         self._roi_fit = None
         self._roi_fit_error = None
-        self._fitgauss = fitgauss or FitGaussian
+        self._fitgauss = fitgauss or FitGaussianScipy()
         super().__init__(*args, **kwargs)
         self._update_image_roi(*args, **kwargs)
 
@@ -1396,7 +1396,7 @@ class Image2D_Fit(Image2D):
         self._angle = None
         self._sigma1 = None
         self._sigma2 = None
-        self._fitgauss = fitgauss or FitGaussian
+        self._fitgauss = fitgauss or FitGaussianScipy()
         super().__init__(*args, **kwargs)
         self._update_image_fit(roix=roix, roiy=roiy)
 
@@ -1605,6 +1605,9 @@ class Image2D_Fit(Image2D):
         axes.set_ylabel('ROI pixel indices')
         axes.set_ylabel('Projection Intensity')
 
+        return fig, axes
+
+
     def __str__(self):
         """."""
         res = super().__str__()
@@ -1639,6 +1642,7 @@ class Image2D_Fit(Image2D):
         # fit projections
         roix, roiy = Image2D.update_roi(self.data, roix, roiy)
         data = self.project_image(self._data, 0)
+
         self._fity = Image1D_Fit(
             data=data, roi=roiy, fitgauss=self._fitgauss)
         self._fity.set_saturation_flag(self.is_saturated)
