@@ -815,7 +815,7 @@ class Image2D_ROI(Image2D):
 
     def imshow(
             self, fig=None, axes=None,
-            cropx = None, cropy = None,
+            cropx=None, cropy=None,
             color_ellip=None, color_roi=None):
         """Show image.
 
@@ -837,11 +837,11 @@ class Image2D_ROI(Image2D):
                 roi rectangle plot. Defaults to None, in case the RGB color
                 [0.5, 0.5, 0] is used. If it is set to string 'no' no
                 roi is ploted.
-        """
 
+        """
         return Image2D_ROI.imshow_images(
             self.data, self.imagex, self.imagey, self.roix, self.roiy,
-            fig=fig, axes=axes, cropx = cropx, cropy = cropy,
+            fig=fig, axes=axes, cropx=cropx, cropy=cropy,
             color_ellip=color_ellip, color_roi=color_roi)
 
     def create_trimmed(self):
@@ -918,7 +918,9 @@ class Image2D_ROI(Image2D):
             color_axes (str | RGB color | None): color to use for image
                 principal axes. Defaults to None, in which case the color
                 'blue' is used. If it is set to string 'no' no
-                axes are ploted."""
+                axes are ploted.
+
+        """
         color_ellip = None if color_ellip == 'no' else color_ellip or 'tab:red'
         color_roi = None if color_roi == 'no' else color_roi or 'yellow'
         color_axes = None if color_axes == 'no' else color_axes or 'blue'
@@ -1177,7 +1179,7 @@ class Image2D_CMom(Image2D_ROI):
         self._sigmay = sigmay
 
     @staticmethod
-    def calc_meshgrids(imagex : Image1D_ROI, imagey : Image1D_ROI):
+    def calc_meshgrids(imagex: Image1D_ROI, imagey: Image1D_ROI):
         """."""
         roix_meshgrid, roiy_meshgrid = \
             _np.meshgrid(imagex.roi_indcs, imagey.roi_indcs)
@@ -1563,12 +1565,12 @@ class Image2D_Fit(Image2D):
 
     def imshow(
             self, fig=None, axes=None,
-            cropx = None, cropy = None,
+            cropx=None, cropy=None,
             color_ellip=None, color_roi=None, color_axes=None):
         """."""
         return Image2D_ROI.imshow_images(
             self.data, self.fitx, self.fity, self.fitx.roi, self.fity.roi,
-            angle=self.angle, fig=fig, axes=axes, cropx = cropx, cropy = cropy,
+            angle=self.angle, fig=fig, axes=axes, cropx=cropx, cropy=cropy,
             color_ellip=color_ellip, color_roi=color_roi,
             color_axes=color_axes)
 
