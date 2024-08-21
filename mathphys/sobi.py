@@ -8,10 +8,127 @@ import numpy as _np
 class SOBI():
     """ICA via Second Order Blind Source Separation.
 
-    Implementation based on that of @edouarpineu, available at
+    Considering a linear model for observed data
+
+                X = S A.T,                                       (1)
+
+    where
+       - X is the n_samples x n_features data matrix,
+       - S is the n_samples x n_sources indepdendet source signals matrix
+       - A is the n_features x n_sources linear mixture or mixing matrix
+    the goal of Blind source separation, or identification (BSS, BSI) is to
+    estimate the pseudo-inverse of the mixing matrix A to determine the
+    indepdent source signals S or retrive information from A.
+
+    The Second Order Blind Identifucation (SOBI) algorithm estimates the
+    mixing matrix by
+
+        - projecting/whitening the data into its principal components K
+
+                        Z = X K.T                                (2)
+
+        - joint-diagonalizing the n time-lagged self-covariance matrices
+
+                        C(t) = < Z(t).T Z(t+1) >, t=t_1, ... t_n (3)
+
+          with the linear operator W, i.e.
+
+                        C_diag(t) = W.T C(t) W
+
+    Since source-signals are independent, we recognize C_diag = < S.T S > and
+    from (1), (2) and (3):
+
+                C(t) = < K X(t).T X(t) K.T >
+                     = < K A S(t).T S(t) A.T K.T >
+                     = K A C_diag A.T K.T
+    Therefore
+
+                C_diag = A' K.T C(t) K A'.T
+
+    and we find the unmixing matrix
+
+                A' = W.T K
+
+    Joint diagonalization of covariance matrices for estimatinf the martrix W
+    is achieved via successive Jacobi rotations, as described in Ref [1].
+    Ref [2] introduces the SOBI method.
+
+    OBS: this implementation is based on that of @edouarpineu, available at
     https://github.com/edouardpineau/Time-Series-ICA-with-SOBI-Jacobi
-    + modifications to comform the code to be similar to the API of
-    Scikit-learn's FastICA.
+    Additional modifications were made to comform the code to be similar to
+    the API of Scikit-learn's FastICA (convention for mixing, whitening and
+    components matrices, sources normalization etc) and to make it more
+    general for Blind Source Identification (selecting number of components)
+
+    Parameters
+    ----------
+    n_components: int, default=None
+        Number of components to use. Number of independent signals in
+        the context of source separation. If None, all components are
+        used, resulting in the same number of components/sources as the
+        number of samples of data.
+
+    n_lags: int, default=5
+        Number of time-lags to calculate tje time-lagged self-covariance
+        matrices.
+
+    tol: float, default=1e-5
+        Stopping condition for the joint-diagnalization routine. If the sum
+        of squares of the off-diagonal entries of the set of n_lags + 1
+        self-covariance matrices decreases by less than tol, the
+        diagonalization finishes.
+
+    max_iter: int, default=1000
+        Maximum number of iterations, i.e. Jacobi rotations, applied to the
+        set of covariance matrices for joint-diagonalization
+
+    whiten: str, default="unit-variance"
+        Whitening convention for the source-signals.
+
+        - If "unit-variance" the
+        source signals S are normalized to render unit covariance
+        < S.T @ S > = S.T @ S / S.shape[0] = I, where I is the
+        n_components x n_components identity matrix.
+
+        - If "arbitrary-variance", souce-signals are not normalized, rendering
+        arbitrary covariance < S.T @ S>.
+
+    isreal: bool, default=True
+        whether the input data are real-valued.
+
+    verbose: bool, default=False
+        whether to log the progress of the joint-diagonalization routine,
+        showing the iterations and the corresponding value for the objective
+        function
+
+    Attributes
+    ----------
+    components_ : ndarray of shape (n_components, n_features)
+        The linear operator to apply to the data to get the independent
+        sources S. For SOBI in the context of source separation, it is equal
+        to the unmixing matrix, the pseudo-inverse of the mixing matrix A,
+        which defines X = S A.T.
+
+    mixing_ : ndarray of shape (n_features, n_components)
+        The mixing matrix A, the pseudo-inverse of ``components_``. Linear
+        operator that maps independent sources to the observed linear mixture.
+
+    mean_ : ndarray of shape (`n_features`)
+        The mean over features
+
+    whitening_ : ndarray of shape (`n_components`, `n_components`)
+        Whitening matrix for dimensionaliy reduction. It is the linear
+        operator projecting data X into its principal components.
+
+
+    covs : ndarray of shape (`n_lags + 1`, `n_features`, `n_features`)
+        The `n_lags + 1` time-lagged covariance matrices to be
+        joint-diagonalized
+
+    covs_diag : ndarray of shape (`n_lags + 1`, `n_features`, `n_features`)
+        The `n_lags + 1` joint-diagonalized time-lagged covariance matrices.
+
+
 
     References:
     [1] Cardoso, Souloumiac. Jacobi Angles For Simultaneous
@@ -44,7 +161,6 @@ class SOBI():
         self.whiten = whiten
         self.isreal = isreal
         self.verbose = verbose
-        self._isfitted = False
 
         self.covs = None
         self.covs_diag = None
@@ -281,6 +397,9 @@ class SOBI():
 
             matrices ((l, m, m)-array): the l mxm diagonalized matrices.
         """
+        # TODO: real-valued matrices simplify calculations
+        # use of self.is_real flag is supposed to account for that
+        # not implemented yet
         nr_rows = matrices.shape[1]
         ij_pairs = list(_combinations(range(nr_rows), 2))
 
