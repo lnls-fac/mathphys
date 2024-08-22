@@ -10,13 +10,13 @@ class SOBI():
 
     Considering a linear model for observed data
 
-                X = S A.T,                                       (1)
+                X = S A.T,                                            (1)
 
     where
-       - X is the n_samples x n_features data matrix,
+       - X is the n_samples x n_features data matrix (data as column vectors)
        - S is the n_samples x n_sources indepdendet source signals matrix
        - A is the n_features x n_sources linear mixture or mixing matrix
-    the goal of Blind source separation, or identification (BSS, BSI) is to
+    the goal of Blind source separation, or identification, (BSS, BSI) is to
     estimate the pseudo-inverse of the mixing matrix A to determine the
     indepdent source signals S or retrive information from A.
 
@@ -25,33 +25,37 @@ class SOBI():
 
         - projecting/whitening the data into its principal components K
 
-                        Z = X K.T                                (2)
+                        Z = X K.T                                      (2)
 
-        - joint-diagonalizing the n time-lagged self-covariance matrices
+        - joint-diagonalizing the n+1 time-lagged self-covariance matrices
 
-                        C(t) = < Z(t).T Z(t+1) >, t=t_1, ... t_n (3)
+                        C(t) = < Z(0).T Z(t) >, t = 0, ..., n          (3)
 
           with the linear operator W, i.e.
 
                         C_diag(t) = W.T C(t) W
 
-    Since source-signals are independent, we recognize C_diag = < S.T S > and
-    from (1), (2) and (3):
+    Since source-signals are independent, we must have C_diag(t) =
+    < S(0).T S (t)> and, from (1), (2) and (3), follows that
 
-                C(t) = < K X(t).T X(t) K.T >
-                     = < K A S(t).T S(t) A.T K.T >
-                     = K A C_diag A.T K.T
+                C(t) = < Z(0).T Z(t) >
+                     = < K X(0).T X(t) K.T >
+                     = < K A S(0).T S(t) A.T K.T >
+                     = K A C_diag(t) A.T K.T
     Therefore
 
-                C_diag = A' K.T C(t) K A'.T
+                C_diag(t) = A' K.T C(t) K A'.T
 
     and we find the unmixing matrix
 
                 A' = W.T K
 
-    Joint diagonalization of covariance matrices for estimatinf the martrix W
-    is achieved via successive Jacobi rotations, as described in Ref [1].
-    Ref [2] introduces the SOBI method.
+    This allows determination of source signals as S = X A'.T
+
+    Construction of the matrix W joint-diagonalizing of time-lagged covariance
+    matrices is achieved via successive Jacobi rotations, as described in Ref
+    [1]. Ref [2] applies this diagonalization scheme directly to the blind
+    source separation problem and introduces the SOBI method.
 
     OBS: this implementation is based on that of @edouarpineu, available at
     https://github.com/edouardpineau/Time-Series-ICA-with-SOBI-Jacobi
@@ -66,10 +70,10 @@ class SOBI():
         Number of components to use. Number of independent signals in
         the context of source separation. If None, all components are
         used, resulting in the same number of components/sources as the
-        number of samples of data.
+        number of features of the data.
 
     n_lags: int, default=5
-        Number of time-lags to calculate tje time-lagged self-covariance
+        Number of time-lags to calculate the time-lagged self-covariance
         matrices.
 
     tol: float, default=1e-5
@@ -85,21 +89,21 @@ class SOBI():
     whiten: str, default="unit-variance"
         Whitening convention for the source-signals.
 
-        - If "unit-variance" the
-        source signals S are normalized to render unit covariance
-        < S.T @ S > = S.T @ S / S.shape[0] = I, where I is the
-        n_components x n_components identity matrix.
+        - If "unit-variance" the source signals S are normalized to render
+            unit covariance < S.T @ S > = S.T @ S / S.shape[0] = I, where I is
+            the n_components x n_components identity matrix.
 
-        - If "arbitrary-variance", souce-signals are not normalized, rendering
-        arbitrary covariance < S.T @ S>.
+        - If "arbitrary-variance", or any different string, souce-signals are
+            not normalized to unity, rendering arbitrary (but diagonal)
+            covariance < S.T @ S>.
 
     isreal: bool, default=True
-        whether the input data are real-valued.
+        whether the input data is real-valued.
 
     verbose: bool, default=False
         whether to log the progress of the joint-diagonalization routine,
         showing the iterations and the corresponding value for the objective
-        function
+        function (sum of squares of off-diagonal entries)
 
     Attributes
     ----------
@@ -130,17 +134,76 @@ class SOBI():
 
 
 
-    References:
-    [1] Cardoso, Souloumiac. Jacobi Angles For Simultaneous
-        Diagonalization. SIAM Journal on Matrix Analysis and
-        Applications. https://doi.org/10.1137/S0895479893259546
-        Available at
-        https://www.researchgate.net/publication/277295728_Jacobi_Angles_For_Simultaneous_Diagonalization
-    [2] A. Belouchrani, K. Abed-Meraim, J. -. Cardoso and E. Moulines, "A
-        blind source separation technique using second-order statistics,"
-        in IEEE Transactions on Signal Processing, vol. 45, no. 2, pp.
-        434-444, Feb. 1997, doi: 10.1109/78.554307.
-        Available at http://pzs.dstu.dp.ua/DataMining/ica/bibl/Belouchrani.pdf
+    References
+    ----------
+        [1] Cardoso, Souloumiac. Jacobi Angles For Simultaneous
+            Diagonalization. SIAM Journal on Matrix Analysis and
+            Applications. https://doi.org/10.1137/S0895479893259546
+            Available at
+            https://www.researchgate.net/publication/277295728_Jacobi_Angles_For_Simultaneous_Diagonalization
+        [2] A. Belouchrani, K. Abed-Meraim, J. -. Cardoso and E. Moulines, "A
+            blind source separation technique using second-order statistics,"
+            in IEEE Transactions on Signal Processing, vol. 45, no. 2, pp.
+            434-444, Feb. 1997, doi: 10.1109/78.554307.
+            Available at http://pzs.dstu.dp.ua/DataMining/ica/bibl/Belouchrani.pdf
+
+    Example
+    --------
+    >>> import numpy as np
+    >>> import matplotlib.pyplot as mplt
+    >>> from scipy import signal
+    >>> from mathphys.sobi import SOBI
+
+    >>> # create synthetic data
+    >>> np.random.seed(0)
+    >>> n_samples = 2000
+    >>> time = np.linspace(0, 8, n_samples)
+
+    >>> s1 = np.sin(2 * time)                   # sine-wave
+    >>> s2 = np.sign(np.sin(3 * time))          # square-wave
+    >>> s3 = signal.sawtooth(2 * np.pi * time)  # saw-tooth
+
+    >>> S = np.c_[s1, s2, s3]  # concatenate sources
+    >>> S += 1e-1 * np.random.normal(size=S.shape)  # Add noise
+
+    >>> S /= S.std(axis=0)  # Standardize data (unit covariance)
+
+    >>> A = np.array([[1, 1, 1],
+    >>>               [0.5, 2, 1.0],
+    >>>               [1.5, 1.0, 2.0]])  # Mixing matrix
+    >>> X = np.dot(S, A.T) # Mix data
+
+    >>> # instantiate SOBI
+
+    >>> sobi = SOBI(
+                    n_lags=5, tol=1e-12, n_components=3,
+                    whiten="unit-variance", max_iter=100,
+                    isreal=True, verbose=True
+        )
+    >>> S_sobi = sobi.fit_transform(X)  # source signals
+    >>> A = sobi.mixing_  # mixing matrix
+
+    >>> # plot results
+
+    >>> mplt.figure(figsize=(12,10))
+    >>> models = [X, S, S_sobi]
+    >>> names = [
+    >>>     "Observations (mixed signal)",
+    >>>     "True source signals",
+    >>>     "SOBI recovered source signals",
+    >>> ]
+    >>> colors = ["red", "steelblue", "orange"]
+    >>> for ii, (model, name) in enumerate(zip(models, names), 1):
+    >>>     mplt.subplot(5, 1, ii)
+    >>>     mplt.title(name)
+    >>>     for sig, color in zip(model.T, colors):
+    >>>         mplt.plot(sig, color=color)
+    >>> mplt.tight_layout()
+    >>> mplt.show()
+
+    >>> # check inverse transform (recover X from estimated S)
+    >>> np.allclose(sobi.inverse_transform(S_sobi), X, atol=5e-1)
+
     """
 
     def __init__(
@@ -170,7 +233,21 @@ class SOBI():
         self.components_ = None
 
     def _fit_transform(self, X, compute_sources=False):
-        """."""
+        """Fit the model.
+
+        Args:
+            X (array-like of shape (n_samples, nfeatures)):
+                Training data.
+
+            compute_sources (bool, optional):
+                If False, sources are not computed, only the rotation matrix
+                (unmixing). Defaults to False.
+
+        Returns:
+            S (ndarray of shape (n_samples, n_components)):
+                Independent source signals. `None` if `compute_sources`  is
+                False
+        """
         # input data w/ column-vectors convention
         n_samples, n_features = X.shape
         n_components = self.n_components
@@ -199,6 +276,7 @@ class SOBI():
         self.covs_diag = covs_diag
         if self.isreal:
             self.covs_diag = _np.real(self.covs_diag)
+            self.covs = _np.real(self.covs)
             W = _np.real(W)
 
         if compute_sources:
@@ -221,20 +299,58 @@ class SOBI():
         return S
 
     def fit_transform(self, X):
-        """."""
+        """Fit the model and recover the sources from X.
+
+        Args:
+            X (array-like of shape (n_samples, nfeatures)):
+                Training data.
+
+        Returns:
+            S (ndarray of shape (n_samples, n_components)):
+                Estimated sources obtained by transforming the data with the
+                estimated unmixing matrix.
+        """
         return self._fit_transform(X, compute_sources=True)
 
     def fit(self, X):
-        """."""
+        """Fit the model to X.
+
+        Args:
+            X (array-like of shape (n_samples, nfeatures)):
+                Training data.
+
+        Returns:
+            self (object):
+                Returns the instance itself.
+        """
         self._fit_transform(X, compute_sources=False)
-        return
+        return self
 
     def transform(self, X):
-        """."""
+        """Reciver the sources from X (apply the unmixing matrix).
+
+        Args:
+            X (array-like of shape(n_samples, n_features)):
+                Data to transform.
+
+        Returns:
+            S (ndarray of shape (n_samples, n_components):
+                Estimated sources obtained by transforming the data with the
+                estimated unmixing matrix.
+        """
         return _np.dot(X, self.components_.T)
 
     def inverse_transform(self, X):
-        """."""
+        """Transform the sources back to the mixed data (apply mixing matrix).
+
+        Args:
+            X (array_like of shape (n_samples, n_components)):
+                Source signals.
+
+        Returns:
+            X_new (ndarray of shape (n_samples, n_features)):
+                Reconstructed data obtained with the estimated mixing matrix.
+        """
         if self.mixing_ is not None:
             X = _np.dot(X, self.mixing_.T)
             X += self.mean_[None, :]
@@ -274,7 +390,8 @@ class SOBI():
         """Compress & whiten data.
 
         Projects into the n_components-dimensional space
-        of principal components z = S^-1 U^T X. Assumes data vectors as rows.
+        of principal components z = S^-1 U^T X, where S and U are such that
+        X = U S V.T . Assumes data vectors as rows.
 
         Args:
             X ((m,n)-array): data matrix, data vecotrs (samples) as rows.
