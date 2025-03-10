@@ -10,7 +10,12 @@ import pkg_resources as _pkg_resources
 from types import ModuleType as _ModuleType
 import gzip as _gzip
 
-import h5py as _h5py
+try:
+    import h5py as _h5py
+except:
+    _h5py = None
+
+
 import numpy as _np
 
 
