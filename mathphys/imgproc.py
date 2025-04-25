@@ -878,7 +878,7 @@ class Image2D_ROI(Image2D):
     def imshow_images(
             cls, data, imagex, imagey, roix, roiy, angle=0,
             centerx=None, centery=None, fwhmx=None, fwhmy=None,
-            fig=None, axes=None, cropx=None, cropy=None,
+            fig=None, axes=None, cropx=None, cropy=None, cmap=None,
             color_ellip=None, color_roi=None, color_axes=None):
         """Show image.
 
@@ -910,6 +910,7 @@ class Image2D_ROI(Image2D):
             cropy (tuple | list | numpy.array) : Two-element array with
                 image pixel bounds to crop in Y. Defaults to None and the
                 entire image is ploted.
+            cmap (str | None): color map used in image plot.
             color_ellip (str | RGB color | None): color to use for image
                 ellipse plot. Defaults to None, in which case the color
                 'tab:red' is used. If it is set to string 'no' no ellipse
@@ -925,6 +926,7 @@ class Image2D_ROI(Image2D):
         color_ellip = None if color_ellip == 'no' else color_ellip or 'tab:red'
         color_roi = None if color_roi == 'no' else color_roi or 'yellow'
         color_axes = None if color_axes == 'no' else color_axes or 'blue'
+        cmap = cmap if cmap is not None else "viridis"
         centerx = centerx if centerx is not None else imagex.roi_center
         centery = centery if centery is not None else imagey.roi_center
         fwhmx = fwhmx if fwhmx is not None else imagex.roi_fwhm
@@ -939,7 +941,7 @@ class Image2D_ROI(Image2D):
 
         # plot image
         data = cls._trim_image(data, cropx, cropy)
-        axes.imshow(data, extent=None)
+        axes.imshow(data, cmap=cmap, extent=None)
 
         if color_axes:
             center_ = centerx, centery
@@ -1566,13 +1568,13 @@ class Image2D_Fit(Image2D):
 
     def imshow(
             self, fig=None, axes=None,
-            cropx = None, cropy = None,
+            cropx = None, cropy = None, cmap=None,
             color_ellip=None, color_roi=None, color_axes=None):
         """."""
         return Image2D_ROI.imshow_images(
             self.data, self.fitx, self.fity, self.fitx.roi, self.fity.roi,
             angle=self.angle, fig=fig, axes=axes, cropx = cropx, cropy = cropy,
-            color_ellip=color_ellip, color_roi=color_roi,
+            cmap=cmap, color_ellip=color_ellip, color_roi=color_roi,
             color_axes=color_axes)
 
     def plot_projections(
