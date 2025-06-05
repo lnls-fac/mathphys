@@ -1,18 +1,18 @@
 """Useful functions."""
 import os as _os
 import builtins as _builtins
-import importlib as _importlib
 from collections import namedtuple as _namedtuple
 from functools import partial as _partial
 import pickle as _pickle
 import subprocess as _subprocess
-import pkg_resources as _pkg_resources
+# NOTE: Change to importlib.metadata once python3.6 is not supported anymore:
+import importlib_metadata as _implib_meta
 from types import ModuleType as _ModuleType
 import gzip as _gzip
 
 try:
     import h5py as _h5py
-except:
+except ModuleNotFoundError:
     _h5py = None
 
 
@@ -305,8 +305,8 @@ def get_path_from_package(package):
         pkg = package.__package__
     else:
         raise ValueError('Invalid package type, must be str or module')
-    dist = _pkg_resources.get_distribution(pkg)
-    return dist.location, dist.version
+    dist = _implib_meta.distribution(pkg)
+    return str(dist.locate_file("")), dist.version
 
 
 def is_git_repo(path):
