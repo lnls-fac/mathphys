@@ -1,6 +1,7 @@
 """ICA via SOBI."""
 
 from itertools import combinations as _combinations
+import warnings
 
 import numpy as _np
 
@@ -20,7 +21,7 @@ class SOBI():
     estimate the pseudo-inverse of the mixing matrix A to determine the
     indepdent source signals S or retrive information from A.
 
-    The Second Order Blind Identifucation (SOBI) algorithm estimates the
+    The Second Order Blind Identification (SOBI) algorithm estimates the
     mixing matrix by
 
         - projecting/whitening the data into its principal components K
@@ -33,7 +34,7 @@ class SOBI():
 
           with the linear operator W, i.e.
 
-                        C_diag(t) = W.T C(t) W
+                        C_diag(t) = W.T C(t) W                         (4)
 
     Since source-signals are independent, we must have C_diag(t) =
     < S(0).T S (t)> and, from (1), (2) and (3), follows that
@@ -42,11 +43,11 @@ class SOBI():
                      = < K X(0).T X(t) K.T >
                      = < K A S(0).T S(t) A.T K.T >
                      = K A C_diag(t) A.T K.T
-    Therefore
+    Therefore, comparing
 
                 C_diag(t) = A' K.T C(t) K A'.T
 
-    and we find the unmixing matrix
+    to (4), we find the unmixing matrix
 
                 A' = W.T K
 
@@ -216,75 +217,113 @@ class SOBI():
         isreal=True,
         verbose=False
     ):
-        """."""
+        """Initialize the SOBI instance."""
         self.n_components = n_components
-        self.tol = tol
         self.n_lags = n_lags
+        self.tol = tol
         self.max_iter = max_iter
         self.whiten = whiten
         self.isreal = isreal
         self.verbose = verbose
 
-        self.covs = None
-        self.covs_diag = None
+        self.components_ = None
         self.mean_ = None
         self.mixing_ = None
         self.whitening_ = None
-        self.components_ = None
+        self.covs = None
+        self.covs_diag = None
+
+    def fit_transform(self, X):
+        """Fit the model and recover the sources from X.
+
+        Parameters
+        ----------
+        X : ndarray of shape (n_samples, n_features)
+            Input mixed signals.
+
+        Returns
+        -------
+        S : ndarray of shape (n_samples, n_components)
+            Estimated source signals.
+        """
+        return self._fit_transform(X, compute_sources=True)
+
+    def fit(self, X):
+        """Fit the model to X.
+
+        Parameters
+        ----------
+        X : ndarray of shape (n_samples, n_features)
+            Input mixed signals.
+        """
+        self._fit_transform(X, compute_sources=False)
+        return self
+
+    def transform(self, X):
+        """Apply the unmixing matrix to new data.
+
+        Parameters
+        ----------
+        X : ndarray of shape (n_samples, n_features)
+
+        Returns
+        -------
+        S : ndarray of shape (n_samples, n_components)
+        """
+        if self.components_ is None:
+            raise RuntimeError(
+                "Model must be fitted before calling transform."
+            )
+        return _np.dot(X, self.components_.T)
+
+    def inverse_transform(self, X):
+        """Reconstruct original signals from sources.
+
+        Parameters
+        ----------
+        X : ndarray of shape (n_samples, n_components)
+
+        Returns
+        -------
+        X_reconstructed : ndarray of shape (n_samples, n_features)
+        """
+        if self.mixing_ is None:
+            raise RuntimeError(
+                "Model must be fitted before calling inverse_transform."
+            )
+        return _np.dot(X, self.mixing_.T) + self.mean_[None, :]
 
     def _fit_transform(self, X, compute_sources=False):
-        """Fit the model.
-
-        Args:
-            X (array-like of shape (n_samples, nfeatures)):
-                Training data.
-
-            compute_sources (bool, optional):
-                If False, sources are not computed, only the rotation matrix
-                (unmixing). Defaults to False.
-
-        Returns:
-            S (ndarray of shape (n_samples, n_components)):
-                Independent source signals. `None` if `compute_sources`  is
-                False
-        """
-        # input data w/ column-vectors convention
         n_samples, n_features = X.shape
-        n_components = self.n_components
         rank = min(n_samples, n_features)
+        n_components = self.n_components
+
         if n_components is None or n_components > rank:
             n_components = rank
-            print("Warning: n_components is None or larger than data rank")
-            print("Using n_components = min(X.shape)")
+            warnings.warn(
+                "n_components is None or greater than data rank. " /
+                + "Using min(X.shape)"
+            )
 
-        # calculations w/ row-vectors convention
-
-        XT, K, X_mean = self.whiten_data(X.T)
-        covs = self.get_covariances(XT)
+        XT, K, X_mean = self._whiten_data(X.T, n_components)
+        covs = self._calc_covariances(XT)
         covs = covs + 1j * _np.zeros_like(covs)
-        # cast to complex to avoid errors involving
-        # multipications of possibly complex matrices.
-        W, covs_diag = self.joint_diag(
-                            covs,
-                            W_init=None,
-                            tol=self.tol,
-                            max_iter=self.max_iter,
-                            verbose=self.verbose
-                        )
 
-        self.covs = covs
-        self.covs_diag = covs_diag
+        W, covs_diag = self._joint_diag(
+            covs, tol=self.tol, max_iter=self.max_iter
+        )
+
         if self.isreal:
-            self.covs_diag = _np.real(self.covs_diag)
-            self.covs = _np.real(self.covs)
             W = _np.real(W)
+            covs_diag = _np.real(covs_diag)
+            covs = _np.real(covs)
 
         if compute_sources:
             S = _np.dot(W.T, XT).T
         else:
             S = None
 
-        if self.whiten == "unit-variance":
+        if self.whiten == "unit-variance" and S is not None:
             S_std = S.std(axis=0, keepdims=True)
             S /= S_std
             W /= S_std.T
@@ -292,101 +331,13 @@ class SOBI():
         self.components_ = _np.dot(W.T, K)
         self.mean_ = X_mean
         self.whitening_ = K
-
         self.mixing_ = _np.linalg.pinv(self.components_)
-        self._unmixing = W.T
+        self.covs = covs
+        self.covs_diag = covs_diag
 
         return S
 
-    def fit_transform(self, X):
-        """Fit the model and recover the sources from X.
-
-        Args:
-            X (array-like of shape (n_samples, nfeatures)):
-                Training data.
-
-        Returns:
-            S (ndarray of shape (n_samples, n_components)):
-                Estimated sources obtained by transforming the data with the
-                estimated unmixing matrix.
-        """
-        return self._fit_transform(X, compute_sources=True)
-
-    def fit(self, X):
-        """Fit the model to X.
-
-        Args:
-            X (array-like of shape (n_samples, nfeatures)):
-                Training data.
-
-        Returns:
-            self (object):
-                Returns the instance itself.
-        """
-        self._fit_transform(X, compute_sources=False)
-        return self
-
-    def transform(self, X):
-        """Reciver the sources from X (apply the unmixing matrix).
-
-        Args:
-            X (array-like of shape(n_samples, n_features)):
-                Data to transform.
-
-        Returns:
-            S (ndarray of shape (n_samples, n_components):
-                Estimated sources obtained by transforming the data with the
-                estimated unmixing matrix.
-        """
-        return _np.dot(X, self.components_.T)
-
-    def inverse_transform(self, X):
-        """Transform the sources back to the mixed data (apply mixing matrix).
-
-        Args:
-            X (array_like of shape (n_samples, n_components)):
-                Source signals.
-
-        Returns:
-            X_new (ndarray of shape (n_samples, n_features)):
-                Reconstructed data obtained with the estimated mixing matrix.
-        """
-        if self.mixing_ is not None:
-            X = _np.dot(X, self.mixing_.T)
-            X += self.mean_[None, :]
-            return X
-        else:
-            print("Data must first be fitted.")
-
-    def get_covariances(self, X, n_lags=None):
-        """Calculate the time-lagged self-covariances of data matrix X.
-
-        Centers the data about its mean prior to calulation.
-
-        Args:
-            X (n,m-array): data matrix, data samples as row-vectors
-            n_lags (int, optional): Number of time-lags.
-
-        Returns:
-            (n_lags + 1, m, m)-array: containing the n_lags + 1 m x m
-            time-lagged self-covariances
-        """
-        m, n = X.shape
-        lags = n_lags or self.n_lags
-        n_ = n - lags
-
-        timelagged_covs = _np.empty((lags+1, m, m))
-        X_0, _ = self.center(X[:, :n_])
-
-        for k in range(lags + 1):
-            X_k, _ = self.center(X[:, k:k + n_])
-            cov = _np.dot(X_0, X_k.T)
-            cov /= n_
-            timelagged_covs[k] = cov
-
-        return timelagged_covs
-
-    def whiten_data(self, X, n_components=None):
+    def _whiten_data(self, X, n_components=None):
         """Compress & whiten data.
 
         Projects into the n_components-dimensional space
@@ -405,14 +356,14 @@ class SOBI():
             X_mean (m-array): mean value for each sample of X.
         """
         n_components = n_components or self.n_components
-        Xnm, X_mean = self.center(X)
+        Xnm, X_mean = self._center_data(X)
         U, s, _ = _np.linalg.svd(Xnm, full_matrices=False)
         K = (U / s).T[:n_components]
         X_white = K @ X  # z = U.T S^-1 X
 
         return X_white, K, X_mean
 
-    def center(self, X):
+    def _center_data(self, X):
         """Center data about its mean.
 
         Args:
@@ -424,10 +375,37 @@ class SOBI():
         """
         X_ = X.copy()
         X_mean = X_.mean(axis=-1)
-        Xnm = X_ - X_mean[:, None]
-        return Xnm, X_mean
+        X_centered = X_ - X_mean[:, None]
+        return X_centered, X_mean
 
-    def off(self, M):
+    def _calc_covariances(self, X, n_lags=None):
+        """Calculate the time-lagged self-covariances of data matrix X.
+
+        Centers the data about its mean prior to calulation.
+
+        Args:
+            X (n,m-array): data matrix, data samples as row-vectors
+            n_lags (int, optional): Number of time-lags.
+
+        Returns:
+            (n_lags + 1, m, m)-array: containing the n_lags + 1 m x m
+            time-lagged self-covariances
+        """
+        m, n = X.shape
+        lags = n_lags or self.n_lags
+        n_ = n - lags
+
+        timelagged_covs = _np.empty((lags + 1, m, m))
+        X_0, _ = self._center_data(X[:, :n_])
+
+        for k in range(lags + 1):
+            X_k, _ = self._center_data(X[: , k:k + n_])
+            cov = X_0 @ X_k.T / n_
+            timelagged_covs[k] = cov
+
+        return timelagged_covs
+
+    def _off_diagonal_frobenius(self, M):
         """Compute the sum of squared off-diag entries of a matrix.
 
         Args:
@@ -437,11 +415,11 @@ class SOBI():
             off(M) (float): the sum of squares of the off-diagonal entries of
             M.
         """
-        mat = M.copy()
-        mat -= _np.diag(_np.diag(mat))
-        return _np.linalg.norm(mat, ord='fro')**2
+        M_ = M.copy()
+        M_ -= _np.diag(_np.diag(M_))
+        return _np.linalg.norm(M_, ord='fro')**2
 
-    def jacobi_rotation(self, M):
+    def _jacobi_rotation(self, M):
         """Perform Jacobi rotation [1] for joint diagonalization.
 
         Closed-form angles of Jacobi rotation for joint diagonalization is
@@ -463,13 +441,16 @@ class SOBI():
                 Available at
                 https://www.researchgate.net/publication/277295728_Jacobi_Angles_For_Simultaneous_Diagonalization
         """
-        h = _np.array([M[:, 0, 0] - M[:, 1, 1],
-                       M[:, 0, 1] + M[:, 1, 0],
-                       1j*(M[:, 1, 0] - M[:, 0, 1])]).T  # [2], eq. (5)
+        h = _np.array([
+            M[:, 0, 0] - M[:, 1, 1],
+            M[:, 0, 1] + M[:, 1, 0],
+            1j*(M[:, 1, 0] - M[:, 0, 1])
+        ]).T  # ref [2], eq. (5)
 
-        G = _np.real(_np.dot(h.T, h))  # [2], eq. (4)
+        G = _np.real(h.T @ h)  # ref [2], eq. (4)
         _, eigenvecs = _np.linalg.eigh(G)
         x, y, z = eigenvecs[:, -1]
+
         if x < 0:
             x, y, z = -x, -y, -z  # inner-rotations remark on [2]
 
@@ -477,13 +458,15 @@ class SOBI():
         c = _np.sqrt((x + r) / 2 / r)
         s = (y - 1j * z) / _np.sqrt(2 * r * (x + r))
 
-        R_ijcs = _np.array([[c, _np.conjugate(s)],
-                           [-s, _np.conjugate(c)]])  # [2], eq (2)
+        R_ijcs = _np.array([
+            [c, _np.conj(s)],
+            [-s, _np.conj(c)]
+        ])  # [2], eq (2)
 
         return R_ijcs
 
-    def joint_diag(
-        self, matrices, tol, max_iter, W_init=None, verbose=False
+    def _joint_diag(
+        self, matrices, tol, max_iter, verbose=False
     ):
         """Joint-diagonalize a set of symmetric, square matrices.
 
@@ -495,9 +478,6 @@ class SOBI():
         Args:
             matrices ((l, m, m)-array): the l m x m matrices to be
             jointly-diagonalized.
-
-            W_init ((m, m)-array): the prior guess for the rotation matrix
-            diagonalizing the set of matrices.
 
             tol (float): tolerance precision. If the objective function
             (sum of squared off-diagonal entries) does not decrease by more
@@ -519,41 +499,37 @@ class SOBI():
         # not implemented yet
         nr_rows = matrices.shape[1]
         ij_pairs = list(_combinations(range(nr_rows), 2))
+        identity = _np.eye(nr_rows, dtype=complex)
+        W = identity.copy()
 
-        identity = _np.eye(nr_rows) + 1j * _np.zeros((nr_rows, nr_rows))
-        W = identity if W_init is None else W_init
+        obj = _np.sum([self._off_diagonal_frobenius(m) for m in matrices])
 
-        objective_func = _np.sum([self.off(mat) for mat in matrices])
-
+        diff = _np.inf
         count = 0
 
         if verbose:
             print("Joint-diagonalizing...")
-            print(f"iter {count:3d} \t objective: {objective_func:.2g}")
-
-        diff = _np.inf
+            print(f"iter {count:3d} \t objective: {obj:.2g}")
 
         while diff > tol and count < max_iter:
             count += 1
-
-            for (i, j) in ij_pairs:
-                W_ = identity.copy()
+            for i, j in ij_pairs:
                 submat_idcs = _np.ix_([i, j], [i, j])
                 idx = (slice(None), ) + submat_idcs
-                R = self.jacobi_rotation(matrices[idx])
-                W_[submat_idcs] = _np.dot(W_[submat_idcs], R)
-                W = _np.dot(W, W_.T)
-                # V = V_.copy()
-                # matrices = _np.matmul(_np.matmul(V, matrices), V.T)
-                matrices = W_ @ (matrices @ W_.T)
+                R = self._jacobi_rotation(matrices[idx])
+                G = identity.copy()
+                G[[i, j]][:, [i, j]] = R
 
-            objective_func_ = _np.sum([self.off(mat) for mat in matrices])
+                W = W @ G.T
+                matrices = _np.matmul(_np.matmul(G, matrices), G.T)
 
-            diff = _np.abs(objective_func - objective_func_)
+            new_obj = _np.sum([
+                self._off_diagonal_frobenius(m) for m in matrices
+            ])
+            diff = _np.abs(obj - new_obj)
+            obj = new_obj
 
             if verbose:
-                print(f"iter {count:3d} \t objective: {objective_func:.2f}")
-
-            objective_func = objective_func_
+                print(f"iter {count:3d} \t objective: {obj:.2g}")
 
         return W, matrices
