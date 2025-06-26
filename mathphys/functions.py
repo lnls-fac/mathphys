@@ -336,7 +336,7 @@ def get_package_string(package):
 # ------------------------- HELPER METHODS ------------------------------------
 _BUILTINTYPES = (int, float, complex, str, bytes, bool)
 _BUILTINNAMES = {typ.__name__ for typ in _BUILTINTYPES}
-_NPTYPES = (_np.int_, _np.float_, _np.complex_, _np.bool_)
+_NPTYPES = (_np.int_, _np.float64, _np.complex128, _np.bool_)
 
 
 def _save_recursive_hdf5(fil, path, obj, compress):
