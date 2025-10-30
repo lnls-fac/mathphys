@@ -2,6 +2,8 @@
 import os as _os
 import builtins as _builtins
 import importlib as _importlib
+import importlib.util as _implib_util
+import importlib.metadata as _implib_metadata
 from collections import namedtuple as _namedtuple, ItemsView as _Iterable
 from functools import partial as _partial
 import pickle as _pickle
@@ -291,17 +293,35 @@ def get_path_from_package(package):
 
     Returns:
         location (str): Package installation directory
-        version (str) : Package installation version
-
+        version (str): Package installation version
     """
     if isinstance(package, str):
-        pkg = package
+        pkg_name = package
     elif isinstance(package, _ModuleType):
-        pkg = package.__package__
+        pkg_name = package.__package__ or package.__name__
     else:
         raise ValueError('Invalid package type, must be str or module')
-    dist = _pkg_resources.get_distribution(pkg)
-    return dist.location, dist.version
+
+    # Try to get version using importlib.metadata
+    try:
+        version = _implib_metadata.version(pkg_name)
+    except _implib_metadata.PackageNotFoundError:
+        version = None
+
+    # Try to resolve the package’s filesystem location
+    spec = _implib_util.find_spec(pkg_name)
+    if spec is None or spec.origin is None:
+        location = None
+    else:
+        # Usually .../site-packages/pkg_name/__init__.py
+        # So we take the parent directory of the package itself
+        if spec.submodule_search_locations:
+            location = spec.submodule_search_locations[0]
+        else:
+            import os
+            location = os.path.dirname(spec.origin)
+
+    return location, version
 
 
 def is_git_repo(path):
