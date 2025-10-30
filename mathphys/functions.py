@@ -2,7 +2,7 @@
 import os as _os
 import builtins as _builtins
 import importlib as _importlib
-from collections import namedtuple as _namedtuple
+from collections import namedtuple as _namedtuple, ItemsView as _Iterable
 from functools import partial as _partial
 import pickle as _pickle
 import subprocess as _subprocess
@@ -331,6 +331,17 @@ def get_package_string(package):
     else:
         repo_str += f'{ver:s}'
     return repo_str
+
+
+def flatten(x):
+    """Flatten recursive lists."""
+    if isinstance(x, _Iterable) and not isinstance(x, (str, bytes)):
+        r = []
+        for e in x:
+            r.extend(flatten(e))
+        return r
+    else:
+        return [x]
 
 
 # ------------------------- HELPER METHODS ------------------------------------
