@@ -1,18 +1,23 @@
 """Useful functions."""
 import os as _os
 import builtins as _builtins
-import importlib as _importlib
-import importlib.util as _implib_util
-import importlib.metadata as _implib_metadata
-from collections import namedtuple as _namedtuple, ItemsView as _Iterable
+from collections import namedtuple as _namedtuple, Iterable as _Iterable
 from functools import partial as _partial
 import pickle as _pickle
 import subprocess as _subprocess
+# NOTE: Change to importlib.metadata once python3.6 is not supported anymore:
+import importlib_metadata as _implib_meta
 from types import ModuleType as _ModuleType
 import gzip as _gzip
 
-import h5py as _h5py
+try:
+    import h5py as _h5py
+except ModuleNotFoundError:
+    _h5py = None
+
+
 import numpy as _np
+
 
 
 def generate_random_numbers(n_part, dist_type='exp', cutoff=3):
@@ -283,44 +288,22 @@ def repo_info(repo_path):
 
 def get_path_from_package(package):
     """Return the directory where package is installed.
-
     Args:
         package (str or module): Package name or module
-
     Raises:
         ValueError: If package argument type is different from str or module
-
     Returns:
         location (str): Package installation directory
-        version (str): Package installation version
+        version (str) : Package installation version
     """
     if isinstance(package, str):
-        pkg_name = package
+        pkg = package
     elif isinstance(package, _ModuleType):
-        pkg_name = package.__package__ or package.__name__
+        pkg = package.__package__
     else:
         raise ValueError('Invalid package type, must be str or module')
-
-    # Try to get version using importlib.metadata
-    try:
-        version = _implib_metadata.version(pkg_name)
-    except _implib_metadata.PackageNotFoundError:
-        version = None
-
-    # Try to resolve the package’s filesystem location
-    spec = _implib_util.find_spec(pkg_name)
-    if spec is None or spec.origin is None:
-        location = None
-    else:
-        # Usually .../site-packages/pkg_name/__init__.py
-        # So we take the parent directory of the package itself
-        if spec.submodule_search_locations:
-            location = spec.submodule_search_locations[0]
-        else:
-            import os
-            location = os.path.dirname(spec.origin)
-
-    return location, version
+    dist = _implib_meta.distribution(pkg)
+    return str(dist.locate_file("")), dist.version
 
 
 def is_git_repo(path):
