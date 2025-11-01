@@ -2,9 +2,12 @@
 
 
 import numpy as _np
-import matplotlib.pyplot as _plt
-import matplotlib.patches as _patches
-
+try:
+    import matplotlib.pyplot as _plt
+    import matplotlib.patches as _patches
+except:
+    _plt = None
+    _patches = None
 
 # NOTE: lnls560-linux was used in benchmarking
 #
