@@ -1,7 +1,8 @@
 """Useful functions."""
 import os as _os
 import builtins as _builtins
-from collections import namedtuple as _namedtuple, Iterable as _Iterable
+from collections import Iterable as _Iterable
+from collections import namedtuple as _namedtuple
 from functools import partial as _partial
 import pickle as _pickle
 import subprocess as _subprocess
