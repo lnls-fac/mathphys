@@ -1,15 +1,16 @@
 """Useful functions."""
-import os as _os
 import builtins as _builtins
-from collections import Iterable as _Iterable
-from collections import namedtuple as _namedtuple
-from functools import partial as _partial
+import gzip as _gzip
+import os as _os
 import pickle as _pickle
 import subprocess as _subprocess
+from collections import namedtuple as _namedtuple
+from collections.abc import Iterable as _Iterable
+from functools import partial as _partial
+from types import ModuleType as _ModuleType
+
 # NOTE: Change to importlib.metadata once python3.6 is not supported anymore:
 import importlib_metadata as _implib_meta
-from types import ModuleType as _ModuleType
-import gzip as _gzip
 
 try:
     import h5py as _h5py
@@ -18,7 +19,6 @@ except ModuleNotFoundError:
 
 
 import numpy as _np
-
 
 
 def generate_random_numbers(n_part, dist_type='exp', cutoff=3):
