@@ -10,7 +10,7 @@ from functools import partial as _partial
 from types import ModuleType as _ModuleType
 
 # NOTE: Change to importlib.metadata once python3.6 is not supported anymore:
-import importlib_metadata as _implib_meta
+import importlib.metadata as _implib_meta
 
 try:
     import h5py as _h5py
