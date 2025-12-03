@@ -29,7 +29,7 @@ help:  ## Show this help.
 	@grep '##' Makefile| sed -e '/@/d' | sed -r 's,(.*?:).*##(.*),\1\2,g'
 
 dist:  ## Build setuptools dist
-	python setup.py sdist bdist_wheel
+	python -m build
 
 distupload: ## Upload package dist to PyPi
 	python -m twine upload --verbose dist/*
