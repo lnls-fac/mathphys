@@ -1,14 +1,16 @@
 """Useful functions."""
-import os as _os
 import builtins as _builtins
-from collections import namedtuple as _namedtuple
-from functools import partial as _partial
+import gzip as _gzip
+import os as _os
 import pickle as _pickle
 import subprocess as _subprocess
+from collections import namedtuple as _namedtuple
+from collections.abc import Iterable as _Iterable
+from functools import partial as _partial
+from types import ModuleType as _ModuleType
+
 # NOTE: Change to importlib.metadata once python3.6 is not supported anymore:
 import importlib_metadata as _implib_meta
-from types import ModuleType as _ModuleType
-import gzip as _gzip
 
 try:
     import h5py as _h5py
@@ -287,17 +289,13 @@ def repo_info(repo_path):
 
 def get_path_from_package(package):
     """Return the directory where package is installed.
-
     Args:
         package (str or module): Package name or module
-
     Raises:
         ValueError: If package argument type is different from str or module
-
     Returns:
         location (str): Package installation directory
         version (str) : Package installation version
-
     """
     if isinstance(package, str):
         pkg = package
@@ -336,6 +334,17 @@ def get_package_string(package):
     else:
         repo_str += f'{ver:s}'
     return repo_str
+
+
+def flatten(x):
+    """Flatten recursive lists."""
+    if isinstance(x, _Iterable) and not isinstance(x, (str, bytes)):
+        r = []
+        for e in x:
+            r.extend(flatten(e))
+        return r
+    else:
+        return [x]
 
 
 # ------------------------- HELPER METHODS ------------------------------------
