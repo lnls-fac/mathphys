@@ -10,7 +10,7 @@ from functools import partial as _partial
 from types import ModuleType as _ModuleType
 
 # NOTE: Change to importlib.metadata once python3.6 is not supported anymore:
-import importlib_metadata as _implib_meta
+import importlib.metadata as _implib_meta
 
 try:
     import h5py as _h5py
@@ -289,6 +289,7 @@ def repo_info(repo_path):
 
 def get_path_from_package(package):
     """Return the directory where package is installed.
+
     Args:
         package (str or module): Package name or module
     Raises:
@@ -330,7 +331,7 @@ def get_package_string(package):
             repo_str += '+' if info['last_tag'] else ''
             repo_str += f"{info['last_commit']:s}"
         if info['is_dirty']:
-            repo_str += f"+dirty"
+            repo_str += "+dirty"
     else:
         repo_str += f'{ver:s}'
     return repo_str
