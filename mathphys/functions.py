@@ -289,6 +289,7 @@ def repo_info(repo_path):
 
 def get_path_from_package(package):
     """Return the directory where package is installed.
+
     Args:
         package (str or module): Package name or module
     Raises:
@@ -330,7 +331,7 @@ def get_package_string(package):
             repo_str += '+' if info['last_tag'] else ''
             repo_str += f"{info['last_commit']:s}"
         if info['is_dirty']:
-            repo_str += f"+dirty"
+            repo_str += "+dirty"
     else:
         repo_str += f'{ver:s}'
     return repo_str
@@ -350,7 +351,7 @@ def flatten(x):
 # ------------------------- HELPER METHODS ------------------------------------
 _BUILTINTYPES = (int, float, complex, str, bytes, bool)
 _BUILTINNAMES = {typ.__name__ for typ in _BUILTINTYPES}
-_NPTYPES = (_np.int_, _np.float_, _np.complex_, _np.bool_)
+_NPTYPES = (_np.int_, _np.float64, _np.complex128, _np.bool_)
 
 
 def _save_recursive_hdf5(fil, path, obj, compress):
