@@ -1,4 +1,5 @@
 """Useful functions."""
+
 import builtins as _builtins
 import gzip as _gzip
 import os as _os
@@ -48,7 +49,7 @@ def generate_random_numbers(n_part, dist_type='exp', cutoff=3):
         above = above[indcs]
 
     if dist_type in 'uniform':
-        numbers -= 1/2
+        numbers -= 1 / 2
         numbers *= 2
     return numbers
 
@@ -305,7 +306,7 @@ def get_path_from_package(package):
     else:
         raise ValueError('Invalid package type, must be str or module')
     dist = _implib_meta.distribution(pkg)
-    return str(dist.locate_file("")), dist.version
+    return str(dist.locate_file('')), dist.version
 
 
 def is_git_repo(path):
@@ -326,12 +327,12 @@ def get_package_string(package):
     if is_git_repo(path):
         info = repo_info(path)
         if info['last_tag']:
-            repo_str += f"{info['last_tag']:s}"
+            repo_str += f'{info["last_tag"]:s}'
         if info['last_tag_commit'] != info['last_commit']:
             repo_str += '+' if info['last_tag'] else ''
-            repo_str += f"{info['last_commit']:s}"
+            repo_str += f'{info["last_commit"]:s}'
         if info['is_dirty']:
-            repo_str += "+dirty"
+            repo_str += '+dirty'
     else:
         repo_str += f'{ver:s}'
     return repo_str
@@ -373,7 +374,7 @@ def _save_recursive_hdf5(fil, path, obj, compress):
         for key, item in obj.items():
             _save_recursive_hdf5(fil, path + key, item, compress)
     else:
-        raise TypeError('Data type not valid: '+typ.__name__+'.')
+        raise TypeError('Data type not valid: ' + typ.__name__ + '.')
     fil[path].attrs['type'] = typ.__name__
 
 
@@ -384,7 +385,8 @@ def _load_recursive_hdf5(fil):
         return [_load_recursive_hdf5(fil[str(i)]) for i in range(len(fil))]
     elif typ == 'tuple':
         return tuple([
-            _load_recursive_hdf5(fil[str(i)]) for i in range(len(fil))])
+            _load_recursive_hdf5(fil[str(i)]) for i in range(len(fil))
+        ])
     elif typ == 'set':
         return {_load_recursive_hdf5(fil[str(i)]) for i in range(len(fil))}
     elif typ == 'dict':
