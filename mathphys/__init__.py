@@ -12,10 +12,11 @@ from . import constants
 from . import functions
 from . import beam_optics
 from . import imgproc
+from . import algorithms
 
 __all__ = [
     'base_units', 'units', 'constants', 'functions', 'beam_optics',
-    'imgproc',
+    'imgproc', 'algorithms',
     ]
 
 with open(_os.path.join(__path__[0], 'VERSION'), 'r') as _f:
